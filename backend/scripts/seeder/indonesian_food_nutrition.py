@@ -85,14 +85,21 @@ class NutritionSeeder:
             ),
         )
 
-
     def seed_from_csv(self, csv_path: Path) -> int:
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV not found: {csv_path}")
 
         with csv_path.open(newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            required = {"id", "calories", "proteins", "fat", "carbohydrate", "name", "image"}
+            required = {
+                "id",
+                "calories",
+                "proteins",
+                "fat",
+                "carbohydrate",
+                "name",
+                "image",
+            }
             if not required.issubset(set(reader.fieldnames or [])):
                 missing = required - set(reader.fieldnames or [])
                 raise ValueError(f"CSV missing required columns: {sorted(missing)}")
@@ -106,17 +113,25 @@ class NutritionSeeder:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Seed SQLite with Indonesian food nutrition data.")
+    parser = argparse.ArgumentParser(
+        description="Seed SQLite with Indonesian food nutrition data."
+    )
     parser.add_argument(
         "--csv",
         type=str,
-        default=str((Path(__file__).resolve().parents[2] / "data" / "nutrition.csv").resolve()),
+        default=str(
+            (Path(__file__).resolve().parents[2] / "data" / "nutrition.csv").resolve()
+        ),
         help="Path to nutrition CSV (defaults to backend/data/nutrition.csv)",
     )
     parser.add_argument(
         "--db",
         type=str,
-        default=str((Path(__file__).resolve().parents[2] / "data" / "peupajoh.sqlite3").resolve()),
+        default=str(
+            (
+                Path(__file__).resolve().parents[2] / "data" / "peupajoh.sqlite3"
+            ).resolve()
+        ),
         help="Path to SQLite DB (defaults to backend/data/peupajoh.sqlite3)",
     )
     args = parser.parse_args()
@@ -133,4 +148,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
