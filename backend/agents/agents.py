@@ -1,7 +1,10 @@
+import uuid
 from agno.agent import Agent
 from agno.models.anthropic import Claude
+from agno.models.openai import OpenAIChat
 from agno.db.sqlite import SqliteDb
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
+import asyncio
 from dotenv import load_dotenv
 
 # Import your models
@@ -9,7 +12,10 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models.models import FoodExtractionResult, ClarificationRequest
+from models.models import FoodExtractionResult, ClarificationRequest, ClarificationType
+from search.search import search_food_db
+from search.search import DB_PATH as FOOD_DB_PATH
+import aiosqlite
 
 load_dotenv()
 
@@ -20,7 +26,7 @@ class AgentConfig:
     def __init__(
         self,
         name: str,
-        model_id: str = "claude-3-5-haiku-latest",
+        model_id: str = "gpt-5-nano",
         system_prompt: Optional[str] = None,
         db_file: str = "agno.db",
         temperature: float = 0.7,
@@ -42,7 +48,7 @@ def create_agent(config: AgentConfig) -> Agent:
     """Factory function to create configured agents"""
     agent = Agent(
         name=config.name,
-        model=Claude(id=config.model_id),
+        model=OpenAIChat(id=config.model_id),
         db=SqliteDb(db_file=config.db_file),
         debug_mode=config.debug_mode,
         add_history_to_context=True,
@@ -114,7 +120,97 @@ def extract_foods_structured(message: str) -> FoodExtractionResult:
     return run_output.content
 
 
+async def _fetch_nutrition_by_name(name: str) -> Optional[Dict[str, Any]]:
+    """Fetch a single food item row by exact name from SQLite (async)."""
+    async with aiosqlite.connect(FOOD_DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """
+            SELECT id, name, calories, proteins, fat, carbohydrate, image
+            FROM food_items
+            WHERE name = ?
+            """,
+            (name,),
+        ) as cur:
+            row = await cur.fetchone()
+            return dict(row) if row else None
+
+
+async def main_workflow_async(
+    food_items: List[Dict[str, Any]], request_id: str, threshold: float = 0.80
+) -> Dict[str, Any]:
+    """
+    - For each food item, search in local DB using fuzzy search (by local_name if present, else name).
+    - Attach request_id to each result.
+    - If not found, add a clarification request for that specific item.
+    Returns a dict with:
+      {
+        'request_id': str,
+        'matched': [ { query, match_name, score, nutrition } ],
+        'clarifications': [ ClarificationRequest.model_dump() ]
+      }
+    """
+    matched: List[Dict[str, Any]] = []
+    clarifications: List[ClarificationRequest] = []
+
+    for item in food_items:
+        food_request_id = uuid.uuid4().hex
+        query = (item.get("local_name") or item.get("name") or "").strip()
+        if not query:
+            clarifications.append(
+                ClarificationRequest(
+                    type=ClarificationType.FOOD_TYPE,
+                    question="Saya tidak bisa mengenali makanan. Tolong sebutkan nama makanan secara jelas?",
+                    options=None,
+                    context={"request_id": food_request_id, "item": item},
+                    is_required=True,
+                )
+            )
+            continue
+
+        results = await search_food_db(query, threshold=threshold)
+        if results:
+            top_name, score, _ = results[0]
+            nutrition = await _fetch_nutrition_by_name(top_name)
+            matched.append(
+                {
+                    "request_id": food_request_id,
+                    "query": query,
+                    "match_name": top_name,
+                    "score": float(score) / 100.0,
+                    "nutrition": nutrition,
+                    "raw_item": item,
+                }
+            )
+        else:
+            clarifications.append(
+                ClarificationRequest(
+                    type=ClarificationType.FOOD_TYPE,
+                    question=f"Maksud Anda '{query}' itu makanan apa? Bisa berikan nama lain atau deskripsi singkat?",
+                    options=None,
+                    context={"request_id": food_request_id, "item": item},
+                    is_required=True,
+                )
+            )
+
+    return {
+        "request_id": request_id,
+        "matched": matched,
+        "clarifications": [c.model_dump() for c in clarifications],
+    }
+
+
+def main_workflow(
+    food_items: List[Dict[str, Any]], request_id: str, threshold: float = 0.80
+) -> Dict[str, Any]:
+    """Synchronous wrapper for environments that prefer sync calls."""
+    return asyncio.run(main_workflow_async(food_items, request_id, threshold))
+
+
 if __name__ == "__main__":
+    request_id = uuid.uuid4().hex
+    print(f"Request ID: {request_id}")
+    raise Exception("Test")
     message = """Kemarin saya makan Sarapan: bubur  1 porsi
 Lunch : sushi tei
 Malam: Steak ayam
@@ -144,3 +240,8 @@ Snack: roti kukus"""
 
     print("\n=== PYDANTIC MODEL JSON ===")
     print(result.model_dump_json(indent=2))
+
+    # Run main workflow
+    workflow_result = main_workflow(result.foods, request_id)
+    print("\n=== WORKFLOW RESULT ===")
+    print(workflow_result)
