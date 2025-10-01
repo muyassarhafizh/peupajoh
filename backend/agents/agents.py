@@ -120,6 +120,33 @@ def extract_foods_structured(message: str) -> FoodExtractionResult:
     return run_output.content
 
 
+# Helpers to support both dict and Pydantic model items
+def _get_field(item: Any, field: str) -> Any:
+    if isinstance(item, dict):
+        return item.get(field)
+    # pydantic v2 models expose attributes directly
+    return getattr(item, field, None)
+
+
+def _to_raw_item(item: Any) -> Dict[str, Any]:
+    # Prefer pydantic v2 model_dump if available
+    if hasattr(item, "model_dump") and callable(getattr(item, "model_dump")):
+        try:
+            return item.model_dump()
+        except Exception:
+            pass
+    if isinstance(item, dict):
+        return item
+    # Fallback minimal projection
+    return {
+        "name": _get_field(item, "name"),
+        "local_name": _get_field(item, "local_name"),
+        "portion_description": _get_field(item, "portion_description"),
+        "quantity": _get_field(item, "quantity"),
+        "meal_type": str(_get_field(item, "meal_type")) if _get_field(item, "meal_type") is not None else None,
+    }
+
+
 async def _fetch_nutrition_by_name(name: str) -> Optional[Dict[str, Any]]:
     """Fetch a single food item row by exact name from SQLite (async)."""
     async with aiosqlite.connect(FOOD_DB_PATH) as db:
@@ -148,21 +175,20 @@ async def main_workflow_async(
         'request_id': str,
         'matched': [ { query, match_name, score, nutrition } ],
         'clarifications': [ ClarificationRequest.model_dump() ]
-      }
     """
     matched: List[Dict[str, Any]] = []
     clarifications: List[ClarificationRequest] = []
 
     for item in food_items:
         food_request_id = uuid.uuid4().hex
-        query = (item.get("local_name") or item.get("name") or "").strip()
+        query = (_get_field(item, "local_name") or _get_field(item, "name") or "").strip()
         if not query:
             clarifications.append(
                 ClarificationRequest(
                     type=ClarificationType.FOOD_TYPE,
                     question="Saya tidak bisa mengenali makanan. Tolong sebutkan nama makanan secara jelas?",
                     options=None,
-                    context={"request_id": food_request_id, "item": item},
+                    context={"request_id": food_request_id, "item": _to_raw_item(item)},
                     is_required=True,
                 )
             )
@@ -179,7 +205,7 @@ async def main_workflow_async(
                     "match_name": top_name,
                     "score": float(score) / 100.0,
                     "nutrition": nutrition,
-                    "raw_item": item,
+                    "raw_item": _to_raw_item(item),
                 }
             )
         else:
@@ -188,7 +214,7 @@ async def main_workflow_async(
                     type=ClarificationType.FOOD_TYPE,
                     question=f"Maksud Anda '{query}' itu makanan apa? Bisa berikan nama lain atau deskripsi singkat?",
                     options=None,
-                    context={"request_id": food_request_id, "item": item},
+                    context={"request_id": food_request_id, "item": _to_raw_item(item)},
                     is_required=True,
                 )
             )
@@ -210,7 +236,7 @@ def main_workflow(
 if __name__ == "__main__":
     request_id = uuid.uuid4().hex
     print(f"Request ID: {request_id}")
-    raise Exception("Test")
+
     message = """Kemarin saya makan Sarapan: bubur  1 porsi
 Lunch : sushi tei
 Malam: Steak ayam
