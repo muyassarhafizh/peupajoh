@@ -1,6 +1,22 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional, Tuple, Any
-from ..models.models import *
+from typing import List, Dict, Optional, Tuple, Any, Protocol
+from datetime import datetime
+from ..models.models import (
+    LLMRequest,
+    LLMResponse,
+    FoodItem,
+    DatabaseQuery,
+    FoodMatchResult,
+    FoodCategory,
+    ConversationContext,
+    ClarificationRequest,
+    PortionEstimationResult,
+    Meal,
+    NutritionInfo,
+    DailySummary,
+    UserResponse,
+    FoodExtractionResult,
+)
 
 
 class LLMProvider(Protocol):

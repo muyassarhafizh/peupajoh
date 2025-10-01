@@ -1,0 +1,37 @@
+name: Ruff Lint and Format Check
+
+on:
+  push:
+    branches: ["*"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ruff-lint.yml"
+  pull_request:
+    branches: ["*"]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ruff-lint.yml"
+
+jobs:
+  ruff-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff Linter
+        working-directory: ./backend
+        run: ruff check .
+
+      - name: Run Ruff Format Check
+        working-directory: ./backend
+        run: ruff format --check .
