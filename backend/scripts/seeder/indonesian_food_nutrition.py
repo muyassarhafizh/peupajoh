@@ -62,6 +62,14 @@ class NutritionSeeder:
 
     @staticmethod
     def _upsert_row(conn: sqlite3.Connection, row: dict) -> None:
+        # Normalize name: remove common suffix words like 'masakan', 'segar', 'matang'
+        name_parts = (row.get("name") or "").strip().split()
+        name_parts = [
+            word.lower()
+            for word in name_parts
+            if word.lower() not in ("masakan", "segar", "matang")
+        ]
+        name = " ".join(name_parts)
         conn.execute(
             f"""
             INSERT INTO {TABLE_NAME} (id, name, calories, proteins, fat, carbohydrate, image)
@@ -76,7 +84,7 @@ class NutritionSeeder:
             """,
             (
                 int(row["id"]) if row.get("id") not in (None, "") else None,
-                (row.get("name") or "").strip(),
+                name.strip(),
                 _to_float(row.get("calories", "")),
                 _to_float(row.get("proteins", "")),
                 _to_float(row.get("fat", "")),
