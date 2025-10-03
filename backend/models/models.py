@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 class MealType(str, Enum):
@@ -88,15 +88,17 @@ class FoodItem(BaseModel):
     subcategory: Optional[str] = None
     nutrition_per_100g: NutritionInfo
     standard_portions: Optional[Union[PortionDefinition, Dict[str, Any]]] = Field(
-        None, 
-        description="Standard portions - PortionDefinition (S/M/L), dict with serving_size, or None for AI to assume"
+        None,
+        description="Standard portions - PortionDefinition (S/M/L), dict with serving_size, or None for AI to assume",
     )
     variations: List[str] = Field(default_factory=list, description="Common variations")
     tags: List[str] = Field(
-        default_factory=list, description="Search tags for matching (e.g., 'breakfast', 'protein')"
+        default_factory=list,
+        description="Search tags for matching (e.g., 'breakfast', 'protein')",
     )
     is_composite: bool = Field(
-        default=False, description="Whether this is a composite dish with multiple ingredients"
+        default=False,
+        description="Whether this is a composite dish with multiple ingredients",
     )
     embeddings: Optional[Union[List[float], Any]] = Field(
         None, description="Vector embeddings for semantic similarity search"
@@ -273,10 +275,10 @@ class DatabaseQuery(BaseModel):
 class DailyMealData(BaseModel):
     """
     Firm input schema for nutrition advisor agent.
-    
+
     Contains lists of FoodItem organized by meal type.
     All FoodItems must have NutritionInfo (from database).
-    
+
     Expected meal types: Breakfast, Lunch, Dinner, Snack
     """
 
