@@ -33,6 +33,7 @@ class AgentConfig:
         debug_mode: bool = False,
         tools: Optional[List] = None,
         output_schema: Optional[Any] = None,
+        input_schema: Optional[Any] = None,
     ):
         self.name = name
         self.model_id = model_id
@@ -42,6 +43,7 @@ class AgentConfig:
         self.debug_mode = debug_mode
         self.tools = tools or []
         self.output_schema = output_schema
+        self.input_schema = input_schema
 
 
 def create_agent(config: AgentConfig) -> Agent:
@@ -55,6 +57,7 @@ def create_agent(config: AgentConfig) -> Agent:
         markdown=True,
         tools=config.tools,
         output_schema=config.output_schema,  # Native structured output!
+        input_schema=config.input_schema,  # Optional input schema for validation
     )
 
     # Set system prompt if provided
