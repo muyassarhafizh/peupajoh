@@ -12,7 +12,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models.models import FoodExtractionResult, ClarificationRequest, ClarificationType
+from models.models import FoodExtractionResult, BatchClarificationQuestions
 from search.search import search_food_db
 from search.search import DB_PATH as FOOD_DB_PATH
 import aiosqlite
@@ -95,10 +95,29 @@ AGENT_CONFIGS = {
     ),
     "clarification": AgentConfig(
         name="Clarification Agent",
-        system_prompt="""You are a clarification specialist.
-        Ask clear, specific questions when food descriptions are ambiguous.
-        Keep questions concise and user-friendly.""",
-        output_schema=ClarificationRequest,
+        system_prompt="""You are a friendly clarification specialist for Indonesian food tracking and don't be monotonous.
+
+        You will receive a list of food items where each has multiple possible matches from the database.
+        Your job is to generate clear, friendly questions in Indonesian to ask the user which food they meant.
+
+        For each item, create:
+        1. A natural, conversational question in Indonesian
+        2. Present the options clearly
+        3. Include context (meal type, portion) to help the user decide
+
+        Guidelines:
+        - Use friendly, conversational Indonesian (e.g., "Maksud Anda...", "Yang mana nih?", and etc), remember don't be monotonous
+        - Keep questions short and clear
+        - Present options in a numbered or bulleted format
+        - Consider the meal context in your question
+        - Be helpful and not robotic
+
+        Example:
+        Query: "bubur" for breakfast with 3 options
+        Good question: "Untuk sarapan 'bubur' tadi, yang mana nih? Bubur biasa, bubur sagu, atau bubur tinotuan (Manado)?"
+
+        Return structured questions for ALL items that need clarification.""",
+        output_schema=BatchClarificationQuestions,
     ),
 }
 
@@ -118,119 +137,6 @@ def extract_foods_structured(message: str) -> FoodExtractionResult:
     run_output = agent.run(message)
     # The actual structured data is in the content attribute
     return run_output.content
-
-
-# Helpers to support both dict and Pydantic model items
-def _get_field(item: Any, field: str) -> Any:
-    if isinstance(item, dict):
-        return item.get(field)
-    # pydantic v2 models expose attributes directly
-    return getattr(item, field, None)
-
-
-def _to_raw_item(item: Any) -> Dict[str, Any]:
-    # Prefer pydantic v2 model_dump if available
-    if hasattr(item, "model_dump") and callable(getattr(item, "model_dump")):
-        try:
-            return item.model_dump()
-        except Exception:
-            pass
-    if isinstance(item, dict):
-        return item
-    # Fallback minimal projection
-    return {
-        "name": _get_field(item, "name"),
-        "local_name": _get_field(item, "local_name"),
-        "portion_description": _get_field(item, "portion_description"),
-        "quantity": _get_field(item, "quantity"),
-        "meal_type": str(_get_field(item, "meal_type")) if _get_field(item, "meal_type") is not None else None,
-    }
-
-
-async def _fetch_nutrition_by_name(name: str) -> Optional[Dict[str, Any]]:
-    """Fetch a single food item row by exact name from SQLite (async)."""
-    async with aiosqlite.connect(FOOD_DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            """
-            SELECT id, name, calories, proteins, fat, carbohydrate, image
-            FROM food_items
-            WHERE name = ?
-            """,
-            (name,),
-        ) as cur:
-            row = await cur.fetchone()
-            return dict(row) if row else None
-
-
-async def main_workflow_async(
-    food_items: List[Dict[str, Any]], request_id: str, threshold: float = 0.80
-) -> Dict[str, Any]:
-    """
-    - For each food item, search in local DB using fuzzy search (by local_name if present, else name).
-    - Attach request_id to each result.
-    - If not found, add a clarification request for that specific item.
-    Returns a dict with:
-      {
-        'request_id': str,
-        'matched': [ { query, match_name, score, nutrition } ],
-        'clarifications': [ ClarificationRequest.model_dump() ]
-    """
-    matched: List[Dict[str, Any]] = []
-    clarifications: List[ClarificationRequest] = []
-
-    for item in food_items:
-        food_request_id = uuid.uuid4().hex
-        query = (_get_field(item, "local_name") or _get_field(item, "name") or "").strip()
-        if not query:
-            clarifications.append(
-                ClarificationRequest(
-                    type=ClarificationType.FOOD_TYPE,
-                    question="Saya tidak bisa mengenali makanan. Tolong sebutkan nama makanan secara jelas?",
-                    options=None,
-                    context={"request_id": food_request_id, "item": _to_raw_item(item)},
-                    is_required=True,
-                )
-            )
-            continue
-
-        results = await search_food_db(query, threshold=threshold)
-        if results:
-            top_name, score, _ = results[0]
-            nutrition = await _fetch_nutrition_by_name(top_name)
-            matched.append(
-                {
-                    "request_id": food_request_id,
-                    "query": query,
-                    "match_name": top_name,
-                    "score": float(score) / 100.0,
-                    "nutrition": nutrition,
-                    "raw_item": _to_raw_item(item),
-                }
-            )
-        else:
-            clarifications.append(
-                ClarificationRequest(
-                    type=ClarificationType.FOOD_TYPE,
-                    question=f"Maksud Anda '{query}' itu makanan apa? Bisa berikan nama lain atau deskripsi singkat?",
-                    options=None,
-                    context={"request_id": food_request_id, "item": _to_raw_item(item)},
-                    is_required=True,
-                )
-            )
-
-    return {
-        "request_id": request_id,
-        "matched": matched,
-        "clarifications": [c.model_dump() for c in clarifications],
-    }
-
-
-def main_workflow(
-    food_items: List[Dict[str, Any]], request_id: str, threshold: float = 0.80
-) -> Dict[str, Any]:
-    """Synchronous wrapper for environments that prefer sync calls."""
-    return asyncio.run(main_workflow_async(food_items, request_id, threshold))
 
 
 if __name__ == "__main__":
@@ -266,8 +172,3 @@ Snack: roti kukus"""
 
     print("\n=== PYDANTIC MODEL JSON ===")
     print(result.model_dump_json(indent=2))
-
-    # Run main workflow
-    workflow_result = main_workflow(result.foods, request_id)
-    print("\n=== WORKFLOW RESULT ===")
-    print(workflow_result)

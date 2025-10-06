@@ -170,6 +170,33 @@ class ConversationContext(BaseModel):
     confidence_threshold: float = Field(default=0.7)
 
 
+class UserClarificationQuestion(BaseModel):
+    """A clarification question to ask the user"""
+
+    request_id: str = Field(
+        ..., description="The request ID from the clarification item"
+    )
+    question: str = Field(..., description="User-friendly question in Indonesian")
+    options: List[str] = Field(
+        ..., description="List of food options to present to user"
+    )
+    context: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Additional context (meal_type, quantity, etc.)",
+    )
+
+
+class BatchClarificationQuestions(BaseModel):
+    """Batch of clarification questions to ask the user"""
+
+    questions: List[UserClarificationQuestion] = Field(
+        ..., description="List of questions to ask the user"
+    )
+    message: Optional[str] = Field(
+        None, description="Optional introductory message to the user"
+    )
+
+
 # ============================================================================
 # LLM MODELS
 # ============================================================================
