@@ -8,7 +8,6 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models.models import ClarificationRequest, ClarificationType, MealType
 from search.search import search_food_db
 from search.search import DB_PATH as FOOD_DB_PATH
 from agents import extract_foods_structured

@@ -3,8 +3,7 @@ from agno.agent import Agent
 from agno.models.anthropic import Claude
 from agno.models.openai import OpenAIChat
 from agno.db.sqlite import SqliteDb
-from typing import Optional, List, Any, Dict
-import asyncio
+from typing import Optional, List, Any
 from dotenv import load_dotenv
 
 # Import your models
@@ -13,9 +12,6 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.models import FoodExtractionResult, BatchClarificationQuestions
-from search.search import search_food_db
-from search.search import DB_PATH as FOOD_DB_PATH
-import aiosqlite
 
 load_dotenv()
 

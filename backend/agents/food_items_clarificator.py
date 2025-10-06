@@ -79,7 +79,7 @@ def _format_clarification_request(clarification_items: List[Dict[str, Any]]) -> 
         if item.get("portion_description"):
             message += f" ({item['portion_description']})"
 
-        message += f"\n   Options:\n"
+        message += "\n   Options:\n"
         for opt in item["options"]:
             # Clean up the option to just show the food name
             food_name = opt.split(" (score:")[0] if " (score:" in opt else opt
@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
     for idx, question in enumerate(result.questions, 1):
         print(f"{idx}. {question.question}")
-        print(f"   Options:")
+        print("   Options:")
         for opt_idx, opt in enumerate(question.options, 1):
             print(f"     {opt_idx}. {opt}")
         print(f"   (Request ID: {question.request_id})")
