@@ -178,7 +178,8 @@ class UserClarificationQuestion(BaseModel):
     )
     question: str = Field(..., description="User-friendly question in Indonesian")
     options: List[str] = Field(
-        ..., description="List of food options to present to user"
+        ...,
+        description="List of food options to present to user. Filter out options that are not relevant to the user's query.",
     )
     context: Optional[Dict[str, Any]] = Field(
         default_factory=dict,

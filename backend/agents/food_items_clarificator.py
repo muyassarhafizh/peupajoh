@@ -148,6 +148,8 @@ if __name__ == "__main__":
         clarification_items, session_id=session_id
     )
 
+    print(result)
+
     if result.message:
         print(f"Intro: {result.message}\n")
 

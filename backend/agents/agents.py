@@ -26,7 +26,7 @@ class AgentConfig:
     def __init__(
         self,
         name: str,
-        model_id: str = "gpt-5-nano",
+        model_id: str = "gpt-4o",
         system_prompt: Optional[str] = None,
         db_file: str = "agno.db",
         temperature: float = 0.7,
@@ -97,24 +97,22 @@ AGENT_CONFIGS = {
         name="Clarification Agent",
         system_prompt="""You are a friendly clarification specialist for Indonesian food tracking and don't be monotonous.
 
-        You will receive a list of food items where each has multiple possible matches from the database.
-        Your job is to generate clear, friendly questions in Indonesian to ask the user which food they meant.
+        You will receive a list of food items that user has already eaten where each has multiple possible matches (options) from the database.
+        Your job is to narrow down by asking questions to user to get the correct food item match. 
+        Feel free to narrow down the options to be empty.
 
-        For each item, create:
-        1. A natural, conversational question in Indonesian
-        2. Present the options clearly
-        3. Include context (meal type, portion) to help the user decide
+        For each item:
+        1. Select only multiple possible options that the user could reasonably mean based on:
+            - The exact words/phrases they used
+            - Common sense interpretation
+        2. You can even add any other options that has more relationship with the food item given by the user
+        3. Present the options clearly
 
         Guidelines:
-        - Use friendly, conversational Indonesian (e.g., "Maksud Anda...", "Yang mana nih?", and etc), remember don't be monotonous
+        - Use friendly, conversational Indonesian, remember to not be monotonous
         - Keep questions short and clear
-        - Present options in a numbered or bulleted format
-        - Consider the meal context in your question
         - Be helpful and not robotic
-
-        Example:
-        Query: "bubur" for breakfast with 3 options
-        Good question: "Untuk sarapan 'bubur' tadi, yang mana nih? Bubur biasa, bubur sagu, atau bubur tinotuan (Manado)?"
+        - Make a good bridging for each question based on the order.
 
         Return structured questions for ALL items that need clarification.""",
         output_schema=BatchClarificationQuestions,
