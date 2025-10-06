@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from enum import Enum
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -55,7 +55,10 @@ class ClarificationType(str, Enum):
 
 
 class NutritionInfo(BaseModel):
-    """Nutritional information per 100g or per serving"""
+    """
+    Nutritional information per 100g or per serving.
+    Used throughout the system for nutrition data representation.
+    """
 
     calories: float = Field(..., ge=0, description="Calories in kcal")
     protein: float = Field(..., ge=0, description="Protein in grams")
@@ -78,24 +81,27 @@ class PortionDefinition(BaseModel):
 
 
 class FoodItem(BaseModel):
-    """Represents a food item in the database"""
-
     id: str = Field(..., description="Unique identifier")
     name: str = Field(..., description="Food name in English")
     local_name: Optional[str] = Field(None, description="Local/Indonesian name")
     category: FoodCategory
     subcategory: Optional[str] = None
     nutrition_per_100g: NutritionInfo
-    standard_portions: PortionDefinition
+    standard_portions: Optional[Union[PortionDefinition, Dict[str, Any]]] = Field(
+        None,
+        description="Standard portions - PortionDefinition (S/M/L), dict with serving_size, or None for AI to assume",
+    )
     variations: List[str] = Field(default_factory=list, description="Common variations")
     tags: List[str] = Field(
-        default_factory=list, description="Search tags for matching"
+        default_factory=list,
+        description="Search tags for matching (e.g., 'breakfast', 'protein')",
     )
     is_composite: bool = Field(
-        default=False, description="Whether this is a composite dish"
+        default=False,
+        description="Whether this is a composite dish with multiple ingredients",
     )
-    embeddings: Optional[List[float]] = Field(
-        None, description="Vector embeddings for similarity search"
+    embeddings: Optional[Union[List[float], Any]] = Field(
+        None, description="Vector embeddings for semantic similarity search"
     )
 
 
@@ -259,3 +265,36 @@ class DatabaseQuery(BaseModel):
     limit: int = Field(default=10, gt=0)
     threshold: float = Field(default=0.7, ge=0, le=1)
     use_embeddings: bool = Field(default=True)
+
+
+# ============================================================================
+# NUTRITION ADVISOR INPUT SCHEMA
+# ============================================================================
+
+
+class DailyMealData(BaseModel):
+    """
+    Firm input schema for nutrition advisor agent.
+
+    Contains lists of FoodItem organized by meal type.
+    All FoodItems must have NutritionInfo (from database).
+
+    Expected meal types: Breakfast, Lunch, Dinner, Snack
+    """
+
+    Breakfast: List[FoodItem] = Field(
+        default_factory=list, description="Foods consumed at breakfast"
+    )
+    Lunch: List[FoodItem] = Field(
+        default_factory=list, description="Foods consumed at lunch"
+    )
+    Dinner: List[FoodItem] = Field(
+        default_factory=list, description="Foods consumed at dinner"
+    )
+    Snack: List[FoodItem] = Field(
+        default_factory=list, description="Snacks consumed throughout the day"
+    )
+
+    class Config:
+        # Allow additional meal types if needed (e.g., "Brunch", "Supper")
+        extra = "allow"
