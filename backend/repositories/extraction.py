@@ -1,6 +1,7 @@
 from repositories.models.extraction import FoodExtractionResult
 from agents.food_extractor import FoodExtractorAgent
 
+
 def extract_foods_structured(message: str) -> FoodExtractionResult:
     """Extract foods with native structured output"""
     agent = FoodExtractorAgent

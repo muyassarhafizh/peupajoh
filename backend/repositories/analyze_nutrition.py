@@ -76,6 +76,7 @@ class DailyNutritionAnalysis(BaseModel):
     summary: NutritionSummary
     advice: NutritionAdvice
 
+
 def analyze_daily_nutrition(
     meal_data: Dict[str, List[Dict[str, Any]]] | DailyMealData,
 ) -> DailyNutritionAnalysis:
@@ -137,7 +138,10 @@ def analyze_daily_nutrition(
 # ============================================================================
 
 if __name__ == "__main__":
-    from repositories.mock_data.mock_meal_data import mock_meal_data, mock_meal_data_no_portions
+    from repositories.mock_data.mock_meal_data import (
+        mock_meal_data,
+        mock_meal_data_no_portions,
+    )
 
     print("=" * 70)
     print("TEST 1: MEAL DATA WITH STANDARD PORTIONS")

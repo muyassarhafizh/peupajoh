@@ -1,8 +1,8 @@
 from agents.base import AgentConfig, BaseAgent
 
 EXTRACTOR_AGENT_CONFIG = AgentConfig(
-        name="Food Extraction Agent",
-        system_prompt="""You are a food extraction specialist for Indonesian cuisine.
+    name="Food Extraction Agent",
+    system_prompt="""You are a food extraction specialist for Indonesian cuisine.
         
         Extract food items, portions, and meal types from user messages.
         
@@ -19,6 +19,6 @@ EXTRACTOR_AGENT_CONFIG = AgentConfig(
         - Set needs_clarification=true if portions are unclear or food items are ambiguous
         - confidence should reflect how certain you are about the extraction
         - Each food should have its own meal_type based on when it was consumed""",
-    )
+)
 
 FoodExtractorAgent = BaseAgent(EXTRACTOR_AGENT_CONFIG)
