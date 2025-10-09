@@ -2,7 +2,8 @@
 Mock meal data for testing the nutrition advisor agent
 """
 
-from models.models import NutritionInfo, FoodCategory
+from models.nutrition import NutritionInfo
+from models.food import FoodCategory
 
 # Mock data with proper NutritionInfo objects
 mock_meal_data = {
