@@ -267,6 +267,17 @@ class PortionEstimationResult(BaseModel):
     confidence: float = Field(..., ge=0, le=1)
     reasoning: Optional[str] = None
 
+class SpecificityResult(BaseModel):
+    """Result from food specificity analysis agent"""
+    
+    category: str = Field(
+        ..., 
+        description="Classification: 'exact_match', 'needs_clarification', or 'needs_smart_agent'"
+    )
+    reasoning: str = Field(
+        ..., 
+        description="Explanation of why this category was chosen"
+    )
 
 # ============================================================================
 # DATABASE MODELS

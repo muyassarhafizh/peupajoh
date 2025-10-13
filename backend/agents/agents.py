@@ -11,7 +11,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models.models import FoodExtractionResult, BatchClarificationQuestions
+from models.models import FoodExtractionResult, BatchClarificationQuestions, SpecificityResult
 
 load_dotenv()
 
@@ -116,6 +116,25 @@ AGENT_CONFIGS = {
         Return structured questions for ALL items that need clarification.""",
         output_schema=BatchClarificationQuestions,
     ),
+    "specificity": AgentConfig(
+    name="Food Specificity Agent",
+    system_prompt="""You are an Indonesian food expert that determines if user input is more specific than database options.
+
+        Your job: Analyze if the user's food query provides MORE SPECIFIC information than what exists in the database.
+
+        RULES:
+        1. If user query describes a SPECIFIC VARIATION of a database item → needs_smart_agent
+        2. If user query is AMBIGUOUS between multiple database items → needs_clarification  
+        3. If user query EXACTLY matches one database item → exact_match
+
+        EXAMPLES:
+        - "mie ayam yamin" vs ["ayam", "mie ayam"] → needs_smart_agent (yamin is specific style)
+        - "ayam" vs ["ayam goreng", "ayam bakar", "ayam rica"] → needs_clarification (which type?)
+        - "nasi gudeg" vs ["nasi", "gudeg"] → needs_smart_agent (specific dish combination)
+
+        Return: {"category": "exact_match|needs_clarification|needs_smart_agent", "reasoning": "explanation"}""",
+    output_schema=SpecificityResult,
+)
 }
 
 
