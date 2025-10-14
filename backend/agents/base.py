@@ -1,6 +1,9 @@
-from typing import Optional, List, Any
 from enum import Enum
+from typing import Any, List, Optional, Union
+
 from agno.db.sqlite import SqliteDb
+from agno.models.message import Message
+from pydantic import BaseModel
 
 
 class Framework(str, Enum):
@@ -70,35 +73,62 @@ class BaseAgent:
     def __init__(self, config: AgentConfig):
         self.config = config
 
+    def _build_agent(
+        self,
+        input_schema: Optional[Any],
+        output_schema: Optional[Any],
+    ):
+        if self.config.framework != Framework.AGNO:
+            raise NotImplementedError(
+                f"{self.config.framework.value} framework not supported."
+            )
+
+        from agno.agent import Agent
+
+        if self.config.llm_provider == LLMProvider.ANTHROPIC:
+            from agno.models.anthropic import Claude
+
+            model = Claude(id=self.config.model_id)
+        elif self.config.llm_provider == LLMProvider.OPENAI:
+            raise NotImplementedError("OpenAI support not implemented yet.")
+        else:
+            raise NotImplementedError(
+                f"{self.config.llm_provider.value} provider not supported."
+            )
+
+        agent = Agent(
+            name=self.config.name,
+            model=model,
+            db=SqliteDb(db_file=self.config.db_file),
+            debug_mode=self.config.debug_mode,
+            add_history_to_context=True,
+            markdown=True,
+            tools=self.config.tools,
+            output_schema=output_schema,
+            input_schema=input_schema,
+        )
+        if self.config.system_prompt:
+            agent.description = self.config.system_prompt
+        return agent
+
     def run(
         self,
-        input: str,
+        input: Union[str, List[Message], BaseModel],
         input_schema: Optional[Any] = None,
         output_schema: Optional[Any] = None,
         session_id: Optional[str] = None,
         **kwargs,
     ) -> Any:
-        if self.config.framework == Framework.AGNO:
-            from agno.agent import Agent
+        agent = self._build_agent(input_schema, output_schema)
+        return agent.run(input, session_id=session_id, **kwargs)
 
-            if self.config.llm_provider == LLMProvider.ANTHROPIC:
-                from agno.models.anthropic import Claude
-
-                agent = Agent(
-                    name=self.config.name,
-                    model=Claude(id=self.config.model_id),
-                    db=SqliteDb(db_file=self.config.db_file),
-                    debug_mode=self.config.debug_mode,
-                    add_history_to_context=True,
-                    markdown=True,
-                    tools=self.config.tools,
-                    output_schema=output_schema,
-                    input_schema=input_schema,
-                )
-                if self.config.system_prompt:
-                    agent.description = self.config.system_prompt
-                return agent.run(input, session_id=session_id, **kwargs)
-            elif self.config.llm_provider == LLMProvider.OPENAI:
-                # TODO: Husnul add openai model
-                pass
-            return []
+    async def arun(
+        self,
+        input: Union[str, List[Message], BaseModel],
+        input_schema: Optional[Any] = None,
+        output_schema: Optional[Any] = None,
+        session_id: Optional[str] = None,
+        **kwargs,
+    ) -> Any:
+        agent = self._build_agent(input_schema, output_schema)
+        return await agent.arun(input, session_id=session_id, **kwargs)
