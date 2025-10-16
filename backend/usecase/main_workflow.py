@@ -162,6 +162,10 @@ class MainWorkflow:
                 session_state["current_state"] = SessionState.CLARIFYING.value
                 self._save_session_state(session_id, session_state)
 
+                # Call food search agent to get more details
+                # result = await self.food_search_agent.arun(
+                #     search_payload, input_schema=FoodSearchPayload
+                # )
                 return {
                     "status": "needs_more_clarification",
                     "state": session_state["current_state"],
