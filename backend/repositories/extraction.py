@@ -1,11 +1,11 @@
 from repositories.models.extraction import FoodExtractionResult
-from agents.food_extractor import FoodExtractorAgent
+from agents.food_extractor_agent import create_food_extractor_agent
 
 
 def extract_foods_structured(message: str) -> FoodExtractionResult:
     """Extract foods with native structured output"""
-    agent = FoodExtractorAgent
-    run_output = agent.run(message, output_schema=FoodExtractionResult)
+    agent = create_food_extractor_agent()
+    run_output = agent.arun(message, output_schema=FoodExtractionResult)
     return run_output.content
 
 

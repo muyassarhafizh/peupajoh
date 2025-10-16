@@ -1,26 +1,14 @@
 from typing import Dict, Any, Optional
 import json
-from agno.db.sqlite import SqliteDb
+from config.sqlite import SQLiteDB
 from models.session import SessionState
 
 
 class SessionRepository:
     """Repository for managing session state persistence"""
 
-    def __init__(self, db_file: str = "agno.db"):
-        self.db = SqliteDb(db_file=db_file)
-        self._initialize_tables()
-
-    def _initialize_tables(self):
-        """Initialize database tables for session management"""
-        self.db.execute("""
-            CREATE TABLE IF NOT EXISTS agno_sessions (
-                session_id TEXT PRIMARY KEY,
-                session_state TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+    def __init__(self, sqlite_db: SQLiteDB):
+        self.db = sqlite_db.connect()
 
     def get_session_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session state from database"""

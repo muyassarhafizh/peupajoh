@@ -1,9 +1,10 @@
 from typing import Optional, Dict, Any
-from repositories.session import SessionRepository
 from models.extraction import FoodSearchPayload, FoodNames
 from models.session import SessionState
+from repositories.session import SessionRepository
 from repositories.extraction import extract_foods_structured
 from repositories.analyze_nutrition import analyze_daily_nutrition
+from config.sqlite import SQLiteDB
 
 
 class MainWorkflow:
@@ -260,12 +261,16 @@ class MainWorkflow:
         return self.session_repo.list_sessions()
 
 
+DEFAULT_DB_RELATIVE = "backend/agno.db"
+
 # Example usage and testing
 if __name__ == "__main__":
     import asyncio
 
     async def test_workflow():
-        workflow = MainWorkflow()
+        sqlite_db = SQLiteDB(DEFAULT_DB_RELATIVE)
+        session_repo = SessionRepository(sqlite_db)
+        workflow = MainWorkflow(session_repo)
         session_id = "test_session_1"
 
         print("=== Testing Clean Repository-Based Workflow ===")
