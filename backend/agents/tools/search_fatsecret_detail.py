@@ -8,8 +8,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import urlencode
 import re
+import asyncio
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
 
 
@@ -82,58 +83,72 @@ class FatSecretDetailedScraper:
             timeout: Request timeout in seconds
         """
         self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
+        self.client = httpx.AsyncClient(
+            timeout=timeout,
+            headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
+            },
         )
 
-    def search_food(
-        self, keyword: str, max_results: int = 10
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.client.aclose()
+
+    async def search_food(
+        self, query: str, max_results: int = 10
     ) -> list[DetailedNutrition]:
         """
         Search for food items and fetch detailed nutritional information.
 
         Args:
-            keyword: Food name to search for (e.g., 'Bubur Ayam')
+            query: Food name to search for (e.g., 'Bubur Ayam')
             max_results: Maximum number of detailed results to fetch
 
         Returns:
             List of DetailedNutrition objects with comprehensive data
 
         Raises:
-            requests.RequestException: If HTTP requests fail
+            httpx.HTTPError: If HTTP requests fail
         """
-        url = self._build_search_url(keyword)
+        url = self._build_search_url(query)
 
         try:
-            response = self.session.get(url, timeout=self.timeout)
+            response = await self.client.get(url)
             response.raise_for_status()
-        except requests.RequestException as e:
-            raise requests.RequestException(f"Failed to fetch search results: {e}")
+        except httpx.HTTPError as e:
+            raise httpx.HTTPError(f"Failed to fetch search results: {e}")
 
         # Get basic search results with URLs
         search_results = self._parse_search_results(response.text)
 
-        # Fetch detailed info for each result
+        # Fetch detailed info for each result concurrently
         detailed_results = []
-        for i, result in enumerate(search_results[:max_results]):
-            try:
-                print(f"Fetching details for: {result['name']}...")
-                detailed_info = self._fetch_and_parse_detail_page(
+        tasks = []
+        for result in search_results[:max_results]:
+            tasks.append(
+                self._fetch_and_parse_detail_page(
                     result["url"], result["name"], result["brand"]
                 )
-                detailed_results.append(detailed_info)
-            except Exception as e:
-                print(f"Warning: Failed to fetch details for {result['name']}: {e}")
-                continue
+            )
+
+        # Gather all results, ignoring failures
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                print(
+                    f"Warning: Failed to fetch details for {search_results[i]['name']}: {result}"
+                )
+            else:
+                detailed_results.append(result)
 
         return detailed_results
 
-    def _build_search_url(self, keyword: str) -> str:
+    def _build_search_url(self, query: str) -> str:
         """Construct the search URL with proper encoding."""
-        params = {"q": keyword}
+        params = {"q": query}
         query_string = urlencode(params)
         return f"{self.BASE_URL}{self.SEARCH_PATH}?{query_string}"
 
@@ -175,7 +190,7 @@ class FatSecretDetailedScraper:
 
         return results
 
-    def _fetch_and_parse_detail_page(
+    async def _fetch_and_parse_detail_page(
         self, url: str, name: str, brand: Optional[str]
     ) -> DetailedNutrition:
         """
@@ -189,11 +204,12 @@ class FatSecretDetailedScraper:
         Returns:
             DetailedNutrition object with comprehensive data
         """
+        print(f"Fetching details for: {name}...")
         try:
-            response = self.session.get(url, timeout=self.timeout)
+            response = await self.client.get(url)
             response.raise_for_status()
-        except requests.RequestException as e:
-            raise requests.RequestException(f"Failed to fetch {url}: {e}")
+        except httpx.HTTPError as e:
+            raise httpx.HTTPError(f"Failed to fetch {url}: {e}")
 
         return self._parse_nutrition_facts(response.text, name, brand, url)
 
@@ -261,7 +277,7 @@ class FatSecretDetailedScraper:
         nutrition.calories = self._extract_number(
             nutrients.get("Energi", "").split("\n")[-1]
             if "\n" in nutrients.get("Energi", "")
-            else nutrients.get("", "")  # Sometimes calories are in a separate div
+            else nutrients.get("", "")
         )
 
         # Find calories more reliably
@@ -346,103 +362,99 @@ class FatSecretDetailedScraper:
         return float(value.replace(",", "."))
 
 
-# @tool(
-#     name="search",                # Custom name for the tool (otherwise the function name is used)
-#     description="Get the food nutrition from Fatsecret",  # Custom description (otherwise the function docstring is used)
-#     cache_results=True,                             # Enable caching of results
-#     cache_dir="/tmp/agno_cache",                    # Custom cache directory
-#     cache_ttl=3600                                  # Cache TTL in seconds (1 hour)
-# )
-# For now we disable the decorator to avoid changing the function from Callable to other model (more versatile, work with not just agno)
-def scrape_food_nutrition(
-    keyword: str, max_results: int = 10
+async def scrape_food_nutrition(
+    query: str, max_results: int = 10
 ) -> list[DetailedNutrition]:
     """
     Search for food and get detailed nutritional information.
 
     Args:
-        keyword: Food name to search for
+        query: Food name to search for
         max_results: Maximum number of detailed results to fetch (default: 10)
 
     Returns:
         List of DetailedNutrition objects with comprehensive data
 
     Example:
-        >>> results = scrape_food_nutrition('Bubur Ayam')
+        >>> results = await scrape_food_nutrition('Bubur Ayam')
         >>> for food in results:
         ...     print(f"{food.name}: {food.calories}kkal")
         ...     print(f"  Fat: {food.fat}g (Saturated: {food.saturated_fat}g)")
         ...     print(f"  Sodium: {food.sodium}mg")
     """
-    scraper = FatSecretDetailedScraper()
-    return scraper.search_food(keyword, max_results=max_results)
+    async with FatSecretDetailedScraper() as scraper:
+        return await scraper.search_food(query, max_results=max_results)
 
 
 # Example usage
 if __name__ == "__main__":
-    keyword = "Bubur Ayam"
 
-    print("=" * 70)
-    print(f"DETAILED NUTRITION SEARCH: {keyword}")
-    print("=" * 70)
-    print()
+    async def main():
+        query = "Bubur Ayam"
 
-    try:
-        # Search and get detailed info for first 3 results
-        results = scrape_food_nutrition(keyword, max_results=3)
+        print("=" * 70)
+        print(f"DETAILED NUTRITION SEARCH: {query}")
+        print("=" * 70)
+        print()
 
-        print(f"Found {len(results)} detailed results:\n")
+        try:
+            # Search and get detailed info for first 3 results
+            results = await scrape_food_nutrition(query, max_results=3)
 
-        for i, food in enumerate(results, 1):
-            print(f"{i}. {food.name}" + (f" ({food.brand})" if food.brand else ""))
-            print(f"   URL: {food.url}")
-            print(f"   Serving: {food.serving_size}")
-            if food.serving_size_grams:
-                print(f"Gram dalam satu porsi: {food.serving_size_grams} grams")
-            print()
-            print("   MACRONUTRIENTS:")
-            print(
-                f"   • Calories: {food.calories}kkal"
-                + (f" ({food.energy_kj}kj)" if food.energy_kj else "")
-            )
-            print(f"   • Fat: {food.fat}g")
-            if food.saturated_fat:
-                print(f"     - Saturated: {food.saturated_fat}g")
-            if food.trans_fat:
-                print(f"     - Trans: {food.trans_fat}g")
-            if food.polyunsaturated_fat:
-                print(f"     - Polyunsaturated: {food.polyunsaturated_fat}g")
-            if food.monounsaturated_fat:
-                print(f"     - Monounsaturated: {food.monounsaturated_fat}g")
-            print(f"   • Carbohydrates: {food.carbs}g")
-            if food.fiber:
-                print(f"     - Fiber: {food.fiber}g")
-            if food.sugar:
-                print(f"     - Sugar: {food.sugar}g")
-            print(f"   • Protein: {food.protein}g")
-            print()
+            print(f"Found {len(results)} detailed results:\n")
 
-            if food.cholesterol or food.sodium or food.potassium:
-                print("   OTHER NUTRIENTS:")
-                if food.cholesterol:
-                    print(f"   • Cholesterol: {food.cholesterol}mg")
-                if food.sodium:
-                    print(f"   • Sodium: {food.sodium}mg")
-                if food.potassium:
-                    print(f"   • Potassium: {food.potassium}mg")
+            for i, food in enumerate(results, 1):
+                print(f"{i}. {food.name}" + (f" ({food.brand})" if food.brand else ""))
+                print(f"   URL: {food.url}")
+                print(f"   Serving: {food.serving_size}")
+                if food.serving_size_grams:
+                    print(f"   Gram dalam satu porsi: {food.serving_size_grams} grams")
+                print()
+                print("   MACRONUTRIENTS:")
+                print(
+                    f"   • Calories: {food.calories}kkal"
+                    + (f" ({food.energy_kj}kj)" if food.energy_kj else "")
+                )
+                print(f"   • Fat: {food.fat}g")
+                if food.saturated_fat:
+                    print(f"     - Saturated: {food.saturated_fat}g")
+                if food.trans_fat:
+                    print(f"     - Trans: {food.trans_fat}g")
+                if food.polyunsaturated_fat:
+                    print(f"     - Polyunsaturated: {food.polyunsaturated_fat}g")
+                if food.monounsaturated_fat:
+                    print(f"     - Monounsaturated: {food.monounsaturated_fat}g")
+                print(f"   • Carbohydrates: {food.carbs}g")
+                if food.fiber:
+                    print(f"     - Fiber: {food.fiber}g")
+                if food.sugar:
+                    print(f"     - Sugar: {food.sugar}g")
+                print(f"   • Protein: {food.protein}g")
                 print()
 
-            if food.alternative_servings:
-                print("   ALTERNATIVE SERVINGS:")
-                for serving in food.alternative_servings[:3]:
-                    print(f"   • {serving['size']}: {serving['calories']}kkal")
+                if food.cholesterol or food.sodium or food.potassium:
+                    print("   OTHER NUTRIENTS:")
+                    if food.cholesterol:
+                        print(f"   • Cholesterol: {food.cholesterol}mg")
+                    if food.sodium:
+                        print(f"   • Sodium: {food.sodium}mg")
+                    if food.potassium:
+                        print(f"   • Potassium: {food.potassium}mg")
+                    print()
+
+                if food.alternative_servings:
+                    print("   ALTERNATIVE SERVINGS:")
+                    for serving in food.alternative_servings[:3]:
+                        print(f"   • {serving['size']}: {serving['calories']}kkal")
+                    print()
+
+                print("-" * 70)
                 print()
 
-            print("-" * 70)
-            print()
+        except Exception as e:
+            print(f"Error: {e}")
+            import traceback
 
-    except Exception as e:
-        print(f"Error: {e}")
-        import traceback
+            traceback.print_exc()
 
-        traceback.print_exc()
+    asyncio.run(main())
