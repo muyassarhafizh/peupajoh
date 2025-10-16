@@ -91,14 +91,32 @@ class BaseAgent:
                     debug_mode=self.config.debug_mode,
                     add_history_to_context=True,
                     markdown=True,
+                    session_state=None,
                     tools=self.config.tools,
                     output_schema=output_schema,
                     input_schema=input_schema,
                 )
+
                 if self.config.system_prompt:
                     agent.description = self.config.system_prompt
                 return agent.run(input, session_id=session_id, **kwargs)
             elif self.config.llm_provider == LLMProvider.OPENAI:
-                # TODO: Husnul add openai model
-                pass
+                from agno.models.openai import OpenAI
+
+                agent = Agent(
+                    name=self.config.name,
+                    model=OpenAI(id=self.config.model_id),
+                    db=SqliteDb(db_file=self.config.db_file),
+                    debug_mode=self.config.debug_mode,
+                    add_history_to_context=True,
+                    markdown=True,
+                    session_state=None,
+                    tools=self.config.tools,
+                    output_schema=output_schema,
+                    input_schema=input_schema,
+                )
+
+                if self.config.system_prompt:
+                    agent.description = self.config.system_prompt
+                return agent.run(input, session_id=session_id, **kwargs)
             return []
