@@ -1,6 +1,10 @@
 from typing import Optional, Dict, Any
 from repositories.session import SessionRepository
 from models.extraction import FoodSearchPayload, FoodNames
+from models.session import SessionState
+from repositories.extraction import extract_foods_structured
+from repositories.analyze_nutrition import analyze_daily_nutrition
+from repositories.models.extraction import ExtractedFood
 
 
 class MainWorkflow:
@@ -56,7 +60,7 @@ class MainWorkflow:
         """Route to Food Extractor Agent"""
         try:
             # Call extractor agent
-            extraction_result = await extract_foods(user_message)
+            extraction_result = await extract_foods_structured(user_message)
             
             # Update session state with results
             session_state["extracted_foods"] = [food.model_dump() for food in extraction_result.foods]
@@ -66,7 +70,7 @@ class MainWorkflow:
             needs_clarification = []
             for food in extraction_result.foods:
                 if hasattr(food, 'needs_clarification') and food.needs_clarification:
-                    needs_clarification.append(food.normalized_eng_name or food.normalized_id_name)
+                    needs_clarification.append(food)
             
             if needs_clarification:
                 # Transition to clarifying state
@@ -87,14 +91,14 @@ class MainWorkflow:
                 self._save_session_state(session_id, session_state)
                 
                 # Automatically route to search agent
-                return await self._route_to_search_agent(session_id, session_state)
+                return await self._route_to_advisor(session_id, session_state)
                 
         except Exception as e:
             return {"error": f"Error in food extraction: {str(e)}"}
     
     async def _handle_clarification(self, session_id: str, session_state: Dict, user_message: str) -> Dict[str, Any]:
         """Handle user clarification and route to next agent"""
-        # Store clarification response
+        
         session_state["clarification_responses"]["latest"] = user_message
         
         # Transition to advising state
@@ -148,14 +152,14 @@ class MainWorkflow:
     async def _route_to_advisor(self, session_id: str, session_state: Dict, search_result) -> Dict[str, Any]:
         """Route to Advisor Agent for final recommendations"""
         try:
-            # For now, use search result as advice (you can create a separate advisor agent later)
-            advice = f"Nutritional Analysis:\n\n{search_result.content}"
+            advice = await analyze_daily_nutrition(search_result)
             
             # Update session state
             session_state["advisor_recommendations"] = advice
             session_state["current_state"] = SessionState.ADVISED.value
             self._save_session_state(session_id, session_state)
             
+
             return {
                 "status": "advice_provided",
                 "state": session_state["current_state"],
@@ -189,8 +193,8 @@ class MainWorkflow:
     
     def _is_search_complete(self, search_result) -> bool:
         """Determine if search results are complete enough for advice"""
-        # Simple heuristic - you can make this more sophisticated
-        return len(search_result.content) > 50  # Has substantial content
+
+        return len(search_result.content) > 50
     
     def _is_new_food_tracking(self, message: str) -> bool:
         """Determine if message is a new food tracking request"""
