@@ -261,7 +261,7 @@ class MainWorkflow:
         return self.session_repo.list_sessions()
 
 
-DEFAULT_DB_RELATIVE = "backend/agno.db"
+DEFAULT_DB_RELATIVE = "agno.db"
 
 # Example usage and testing
 if __name__ == "__main__":
