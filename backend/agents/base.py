@@ -26,20 +26,8 @@ class AgentConfig:
     ):
         self.name = name
 
-        # Convert string to LLMProvider enum if needed
-        if isinstance(llm_provider, str):
-            try:
-                self.llm_provider = LLMProvider(llm_provider.lower())
-            except ValueError:
-                valid_providers = [p.value for p in LLMProvider]
-                raise ValueError(
-                    f"Invalid llm_provider: '{llm_provider}'. "
-                    f"Must be one of {valid_providers}"
-                )
-        else:
-            self.llm_provider = llm_provider
-
- 
+        self.llm_provider = llm_provider
+        self.framework = framework
 
         self.model_id = model_id
         self.system_prompt = system_prompt

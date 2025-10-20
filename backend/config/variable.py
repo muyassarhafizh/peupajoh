@@ -27,13 +27,13 @@ class ConfigVariable:
         llm_provider: Optional[str] = os.getenv("LLM_PROVIDER")
         if not llm_provider:
             raise ValueError("LLM_PROVIDER is required")
-        self.llm_provider = self._determine_llm_provider(llm_provider)
+        self._determine_llm_provider(llm_provider)
         
         # Framework
         framework: Optional[str] = os.getenv("FRAMEWORK")
         if not framework:
             raise ValueError("FRAMEWORK is required")
-        self.framework = self._determine_framework(framework)
+        self._determine_framework(framework)
         
         # Database
         self.db_path: Optional[str] = os.getenv("DB_PATH")

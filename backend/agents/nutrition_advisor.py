@@ -1,5 +1,5 @@
 from agents.base import AgentConfig, BaseAgent
-
+from config.variable import config as config_variable
 
 # Single Agent Configuration (Will remove the portion assumption in the next iteration)
 NUTRITION_ADVISOR_CONFIG = AgentConfig(
