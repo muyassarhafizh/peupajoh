@@ -1,10 +1,15 @@
 from typing import Optional, Dict, Any
+from dotenv import load_dotenv
 from models.extraction import FoodSearchPayload, FoodNames
 from models.session import SessionState
 from repositories.session import SessionRepository
 from repositories.extraction import extract_foods_structured
 from repositories.analyze_nutrition import analyze_daily_nutrition
+from agents.food_search_agent import create_food_search_agent
 from config.sqlite import SQLiteDB
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class MainWorkflow:
@@ -15,25 +20,8 @@ class MainWorkflow:
 
     def _get_session_state(self, session_id: str) -> Dict[str, Any]:
         """Get or create session state from database"""
-        # Try to get existing session
-        result = self.session_repo.get_session_state(session_id)
-
-        if result:
-            import json
-
-            return json.loads(result[0][0])
-        else:
-            # Create new session with initial state
-            initial_state = {
-                "current_state": SessionState.INITIAL.value,
-                "extracted_foods": [],
-                "pending_clarifications": [],
-                "clarification_responses": {},
-                "advisor_recommendations": None,
-                "user_message": None,
-            }
-            self._save_session_state(session_id, initial_state)
-            return initial_state
+        # Use repository method which already handles parsing
+        return self.session_repo.get_or_create_session(session_id)
 
     def _save_session_state(self, session_id: str, state: Dict[str, Any]):
         """Save session state to database"""
@@ -104,7 +92,7 @@ class MainWorkflow:
                 self._save_session_state(session_id, session_state)
 
                 # Automatically route to search agent
-                return await self._route_to_advisor(session_id, session_state)
+                return await self._route_to_search_agent(session_id, session_state)
 
         except Exception as e:
             return {"error": f"Error in food extraction: {str(e)}"}
@@ -146,8 +134,9 @@ class MainWorkflow:
 
             search_payload = FoodSearchPayload(foods=food_names, notes=[])
 
-            # Call search agent
-            search_result = await self.food_search_agent.arun(
+            # Create and call search agent
+            food_search_agent = create_food_search_agent()
+            search_result = await food_search_agent.arun(
                 search_payload, input_schema=FoodSearchPayload
             )
 

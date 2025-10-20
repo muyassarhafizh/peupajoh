@@ -77,7 +77,7 @@ SCORING:
 - Meal Distribution Score (1-10): Rate how well meals are distributed throughout the day
 
 Always provide constructive feedback that motivates healthy eating habits.""",
-    model_id="claude-sonnet-4-5-20250929",
+    model_id=config_variable.model_id,
     temperature=0.5,
 )
 

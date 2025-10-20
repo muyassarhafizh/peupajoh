@@ -1,9 +1,10 @@
 import asyncio
 
-from .base import AgentConfig, BaseAgent, Framework, LLMProvider
+from .base import AgentConfig, BaseAgent
 from .tools.search_food_in_db import search_food_in_db
 from .tools.search_fatsecret_detail import scrape_food_nutrition
 from models.extraction import FoodNames, FoodSearchPayload
+from config.variable import config as config_variable
 
 
 def create_food_search_agent() -> BaseAgent:
@@ -39,11 +40,11 @@ Feel free to breakdown the food name into smaller parts to search more effective
 
     config = AgentConfig(
         name="food_search_agent",
-        model_id="claude-3-5-haiku-latest",
+        model_id=config_variable.model_id,
         system_prompt=system_prompt,
         temperature=0.3,  # Lower temperature for more factual responses
-        framework=Framework.AGNO,
-        llm_provider=LLMProvider.ANTHROPIC,
+        framework=config_variable.framework,
+        llm_provider=config_variable.llm_provider,
         tools=[
             search_food_in_db,
             scrape_food_nutrition,

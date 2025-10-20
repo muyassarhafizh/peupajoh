@@ -12,14 +12,15 @@ class SessionRepository:
 
     def get_session_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session state from database"""
-        result = self.db.execute(
-            "SELECT session_state FROM agno_sessions WHERE session_id = ?",
+        cursor = self.db.execute(
+            "SELECT session_data FROM agno_sessions WHERE session_id = ?",
             (session_id,),
         )
+        result = cursor.fetchone()
 
-        if result and len(result) > 0:
+        if result:
             try:
-                return json.loads(result[0][0])
+                return json.loads(result[0])
             except (json.JSONDecodeError, IndexError) as e:
                 print(f"Error deserializing session state for {session_id}: {e}")
                 return None
@@ -32,11 +33,12 @@ class SessionRepository:
 
             self.db.execute(
                 """
-                INSERT OR REPLACE INTO agno_sessions (session_id, session_state, updated_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP)
+                INSERT OR REPLACE INTO agno_sessions (session_id, session_type, session_data, created_at, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """,
-                (session_id, serialized_state),
+                (session_id, "workflow", serialized_state),
             )
+            self.db.commit()
 
             return True
         except Exception as e:
@@ -75,6 +77,7 @@ class SessionRepository:
             self.db.execute(
                 "DELETE FROM agno_sessions WHERE session_id = ?", (session_id,)
             )
+            self.db.commit()
             return True
         except Exception as e:
             print(f"Error deleting session {session_id}: {e}")
@@ -87,11 +90,12 @@ class SessionRepository:
     def list_sessions(self) -> list[Dict[str, Any]]:
         """List all sessions with basic info"""
         try:
-            result = self.db.execute("""
+            cursor = self.db.execute("""
                 SELECT session_id, created_at, updated_at 
                 FROM agno_sessions 
                 ORDER BY updated_at DESC
             """)
+            result = cursor.fetchall()
 
             sessions = []
             for row in result:
@@ -106,29 +110,29 @@ class SessionRepository:
 
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session metadata and current state info"""
-        result = self.db.execute(
+        cursor = self.db.execute(
             """
-            SELECT session_id, session_state, created_at, updated_at 
+            SELECT session_id, session_data, created_at, updated_at 
             FROM agno_sessions 
             WHERE session_id = ?
         """,
             (session_id,),
         )
+        result = cursor.fetchone()
 
-        if result and len(result) > 0:
-            row = result[0]
+        if result:
             try:
-                state = json.loads(row[1])
+                state = json.loads(result[1])
                 return {
-                    "session_id": row[0],
+                    "session_id": result[0],
                     "current_state": state.get("current_state"),
                     "extracted_foods_count": len(state.get("extracted_foods", [])),
                     "pending_clarifications_count": len(
                         state.get("pending_clarifications", [])
                     ),
                     "has_advice": bool(state.get("advisor_recommendations")),
-                    "created_at": row[2],
-                    "updated_at": row[3],
+                    "created_at": result[2],
+                    "updated_at": result[3],
                 }
             except json.JSONDecodeError:
                 return None
