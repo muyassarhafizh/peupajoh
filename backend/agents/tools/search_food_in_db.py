@@ -60,6 +60,10 @@ async def search_food_in_db(
     if not query:
         return []
 
+    # Use default DB_PATH if db_path is empty or None
+    if not db_path or db_path == "":
+        db_path = DB_PATH
+
     all_names = await get_all_food_names(db_path)
 
     # `score_cutoff` expects 0-100 range whereas our threshold is 0.0-1.0.

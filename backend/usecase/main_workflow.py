@@ -1,10 +1,11 @@
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
-from models.extraction import FoodSearchPayload, FoodNames
+from models.extraction import FoodSearchPayload, FoodNames, FoodSearchResult
 from models.session import SessionState
+from models.food import FoodItem
 from repositories.session import SessionRepository
 from repositories.extraction import extract_foods_structured
-from repositories.analyze_nutrition import analyze_daily_nutrition
+from repositories.analyze_nutrition import analyze_daily_nutrition, DailyMealData
 from agents.food_search_agent import create_food_search_agent
 from config.sqlite import SQLiteDB
 
@@ -128,16 +129,19 @@ class MainWorkflow:
                     FoodNames(
                         normalized_eng_name=food_data.get("name", ""),
                         normalized_id_name=food_data.get("local_name"),
-                        original_text=food_data.get("local_name") or food_data.get("name", ""),
+                        original_text=food_data.get("local_name")
+                        or food_data.get("name", ""),
                     )
                 )
 
             search_payload = FoodSearchPayload(foods=food_names, notes=[])
 
-            # Create and call search agent
+            # Create and call search agent with structured output
             food_search_agent = create_food_search_agent()
             search_result = await food_search_agent.arun(
-                search_payload, input_schema=FoodSearchPayload
+                search_payload,
+                input_schema=FoodSearchPayload,
+                output_schema=FoodSearchResult,
             )
 
             # Check if everything is completed or needs more clarification
@@ -170,15 +174,18 @@ class MainWorkflow:
     ) -> Dict[str, Any]:
         """Route to Advisor Agent for final recommendations"""
         try:
-            # Extract content from RunOutput - search_result.content is the actual text response
-            search_data = search_result.content if hasattr(search_result, 'content') else search_result
-            
-            # TODO: Fix architecture - food search agent returns text, but nutrition advisor expects structured data
-            # For now, return search results as the advice
-            advice = {
-                "nutrition_info": search_data,
-                "note": "Nutrition analysis from food search agent"
-            }
+            # Extract structured data from RunOutput
+            food_search_data: FoodSearchResult = (
+                search_result.content
+                if hasattr(search_result, "content")
+                else search_result
+            )
+
+            # Convert FoodSearchResult to DailyMealData format
+            meal_data = self._convert_to_daily_meal_data(food_search_data)
+
+            # Call nutrition advisor with structured data
+            advice = analyze_daily_nutrition(meal_data)
 
             # Update session state
             session_state["advisor_recommendations"] = advice
@@ -220,10 +227,46 @@ class MainWorkflow:
                 "previous_advice": session_state["advisor_recommendations"],
             }
 
+    def _convert_to_daily_meal_data(
+        self, search_result: FoodSearchResult
+    ) -> DailyMealData:
+        """Convert FoodSearchResult to DailyMealData format for nutrition advisor."""
+        meal_dict = {"Breakfast": [], "Lunch": [], "Dinner": [], "Snack": []}
+
+        for food_item in search_result.foods:
+            # Create FoodItem for the advisor
+            food = FoodItem(
+                id=f"{food_item.name.lower().replace(' ', '_')}",
+                name=food_item.name,
+                local_name=food_item.local_name,
+                category="other",  # Can be enhanced later
+                nutrition_per_100g=food_item.nutrition_per_100g,
+                standard_portions={"serving_size": food_item.portion_grams}
+                if food_item.portion_grams
+                else None,
+            )
+
+            # Add to appropriate meal type
+            if food_item.meal_type:
+                meal_key = food_item.meal_type.value.capitalize()
+                if meal_key in meal_dict:
+                    meal_dict[meal_key].append(food)
+                else:
+                    meal_dict["Snack"].append(food)  # Default to snack if unknown
+            else:
+                meal_dict["Snack"].append(food)  # Default to snack if no meal type
+
+        return DailyMealData(**meal_dict)
+
     def _is_search_complete(self, search_result) -> bool:
         """Determine if search results are complete enough for advice"""
-
-        return len(search_result.content) > 50
+        # Check if we have structured data
+        if hasattr(search_result, "content"):
+            search_data = search_result.content
+            if isinstance(search_data, FoodSearchResult):
+                # Complete if we have at least one food item
+                return len(search_data.foods) > 0
+        return False
 
     def _is_new_food_tracking(self, message: str) -> bool:
         """Determine if message is a new food tracking request"""
@@ -272,14 +315,14 @@ if __name__ == "__main__":
         sqlite_db = SQLiteDB(DEFAULT_DB_RELATIVE)
         session_repo = SessionRepository(sqlite_db)
         workflow = MainWorkflow(session_repo)
-        session_id = "test_session_2"
+        session_id = "test_session_3"
 
         print("=== Testing Clean Repository-Based Workflow ===")
 
         # Initial food tracking
         print("\n1. Initial food tracking:")
         result1 = await workflow.process_user_input(
-            "Sarapan: nasi goreng ati ampela, Lunch: nasi ikan bakar solo", session_id
+            "Sarapan: nasi ikan, Lunch: mie goreng, Snack: sushi hiro", session_id
         )
         print(result1)
 
