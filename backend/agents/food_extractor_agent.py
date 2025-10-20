@@ -1,6 +1,7 @@
 from models.extraction import FoodExtractionPayload
 
 from .base import AgentConfig, BaseAgent
+from config.variable import config as config_variable
 
 
 def create_food_extractor_agent() -> BaseAgent:
@@ -26,7 +27,7 @@ def create_food_extractor_agent() -> BaseAgent:
     config = AgentConfig(
         name="Food Extraction Agent",
         system_prompt=system_prompt,
-        model_id="claude-3-5-haiku-latest",
+        model_id=config_variable.model_id,
         temperature=0.3,
         debug_mode=True,
     )

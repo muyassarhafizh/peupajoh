@@ -1,21 +1,11 @@
-from enum import Enum
 from typing import Any, List, Optional, Union
 
 from agno.db.sqlite import SqliteDb
 from agno.models.message import Message
 from pydantic import BaseModel
-
-
-class Framework(str, Enum):
-    AGNO = "agno"
-    LANGGRAPH = "langgraph"
-
-
-class LLMProvider(str, Enum):
-    ANTHROPIC = "anthropic"
-    OPENAI = "openai"
-    GOOGLE = "google"
-    DEEPSEEK = "deepseek"
+from config.variable import config as config_variable
+from config.enum.llm_provider import LLMProvider
+from config.enum.framework import Framework
 
 
 class AgentConfig:
@@ -24,42 +14,19 @@ class AgentConfig:
     def __init__(
         self,
         name: str,
-        model_id: str = "claude-3-5-haiku-latest",
+        model_id: str = config_variable.model_id,
         system_prompt: Optional[str] = None,
-        db_file: str = "agno.db",
+        db_file: str = config_variable.db_path,
         temperature: float = 0.7,
         debug_mode: bool = False,
         tools: Optional[List] = None,
-        framework: Framework = Framework.AGNO,
-        llm_provider: LLMProvider = LLMProvider.ANTHROPIC,
+        framework: Framework = config_variable.framework,
+        llm_provider: LLMProvider = config_variable.llm_provider,
     ):
         self.name = name
 
-        # Convert string to LLMProvider enum if needed
-        if isinstance(llm_provider, str):
-            try:
-                self.llm_provider = LLMProvider(llm_provider.lower())
-            except ValueError:
-                valid_providers = [p.value for p in LLMProvider]
-                raise ValueError(
-                    f"Invalid llm_provider: '{llm_provider}'. "
-                    f"Must be one of {valid_providers}"
-                )
-        else:
-            self.llm_provider = llm_provider
-
-        # Convert string to Framework enum if needed
-        if isinstance(framework, str):
-            try:
-                self.framework = Framework(framework.lower())
-            except ValueError:
-                valid_frameworks = [f.value for f in Framework]
-                raise ValueError(
-                    f"Invalid framework: '{framework}'. "
-                    f"Must be one of {valid_frameworks}"
-                )
-        else:
-            self.framework = framework
+        self.llm_provider = llm_provider
+        self.framework = framework
 
         self.model_id = model_id
         self.system_prompt = system_prompt
@@ -90,7 +57,9 @@ class BaseAgent:
 
             model = Claude(id=self.config.model_id)
         elif self.config.llm_provider == LLMProvider.OPENAI:
-            raise NotImplementedError("OpenAI support not implemented yet.")
+            from agno.models.openai import OpenAIChat
+
+            model = OpenAIChat(id=self.config.model_id)
         else:
             raise NotImplementedError(
                 f"{self.config.llm_provider.value} provider not supported."

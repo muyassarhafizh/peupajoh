@@ -1,49 +1,64 @@
 import asyncio
 
-from .base import AgentConfig, BaseAgent, Framework, LLMProvider
+from .base import AgentConfig, BaseAgent
 from .tools.search_food_in_db import search_food_in_db
 from .tools.search_fatsecret_detail import scrape_food_nutrition
 from models.extraction import FoodNames, FoodSearchPayload
+from config.variable import config as config_variable
 
 
 def create_food_search_agent() -> BaseAgent:
     """Create an agent configured to search the food database."""
 
-    system_prompt = """You are Food Search Agent.
+    system_prompt = """You are Food Search Agent that returns structured nutrition data.
 
 === IDENTITY ===
-When introducing yourself, keep it brief and natural. You're Food Search Agent who helps people find information about food items
+You search for food items and return structured nutritional information per 100g.
 
 === TOOLS AVAILABLE ===
-You have access to these tools to query the resume database:
 - search_food_in_db(query: str, threshold: float = 0.85, limit: int | None = None) -> list[DatabaseFoodMatch]: 
-    Use this to search for food items in the database. 
-    - 'query' is the food name or keyword to search for.
-    - 'threshold' is the minimum similarity score (0.0 - 1.0) to consider a match.
-    - 'limit' is the maximum number of results to return (optional).
-    Returns a list of matching food items with their similarity scores.
+    Search for food items in the database.
 - scrape_food_nutrition(query: str) -> dict:
-    Use this to get detailed nutritional information about a specific food item from FatSecret.
-    - 'query' is the name of the food item to look up.
-    - 'max_results' is the maximum number of results to return (optional).
-    Returns a dictionary with nutritional details like calories, protein, fat, carbs, etc.
+    Get detailed nutritional information from FatSecret.
 
 === RESPONSE PROTOCOL ===
-1. ALWAYS use tools to retrieve data before answering
-2. Search the food in database first, then use scrape_food_nutrition to get more details if needed, 
-Feel free to breakdown the food name into smaller parts to search more effectively.
-3. ONLY state facts that come directly from tool results
-4. Return the per 100g nutrition of each food(divide by serving size if needed)
+1. For each food in the input:
+   - Search the database using search_food_in_db
+   - If found, extract nutrition data and convert to per 100g
+   - If not found or need more details, use scrape_food_nutrition
+   - Return structured FoodSearchResultItem with:
+     * name (English)
+     * local_name (Indonesian/local name)
+     * meal_type (from input)
+     * portion_grams (if specified)
+     * nutrition_per_100g (NutritionInfo object with calories, protein, carbs, fat, fiber, sugar, sodium)
+     * match_confidence (0.0-1.0)
+     * notes (any important info)
 
+2. If a food cannot be found, add it to unmatched_foods list
+
+3. Always convert nutrition to per 100g basis:
+   - If data is per serving, calculate: (value / serving_size_g) * 100
+   - Example: 200 kcal per 150g serving = (200/150)*100 = 133.33 kcal per 100g
+
+4. Return a FoodSearchResult object with:
+   - foods: List of FoodSearchResultItem
+   - unmatched_foods: List of food names that couldn't be matched
+   - notes: Any general warnings or information
+
+=== IMPORTANT ===
+- ALWAYS return structured data, never return plain text
+- Ensure all nutrition values are per 100g
+- Include all available nutrition fields (calories, protein, carbs, fat, fiber, sugar, sodium)
 """
 
     config = AgentConfig(
         name="food_search_agent",
-        model_id="claude-3-5-haiku-latest",
+        model_id=config_variable.model_id,
         system_prompt=system_prompt,
         temperature=0.3,  # Lower temperature for more factual responses
-        framework=Framework.AGNO,
-        llm_provider=LLMProvider.ANTHROPIC,
+        framework=config_variable.framework,
+        llm_provider=config_variable.llm_provider,
         tools=[
             search_food_in_db,
             scrape_food_nutrition,
