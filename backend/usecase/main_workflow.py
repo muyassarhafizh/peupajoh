@@ -126,9 +126,9 @@ class MainWorkflow:
             for food_data in extracted_foods:
                 food_names.append(
                     FoodNames(
-                        normalized_id_name=food_data.get("normalized_id_name", ""),
-                        normalized_eng_name=food_data.get("normalized_eng_name", ""),
-                        original_text=food_data.get("original_text", ""),
+                        normalized_eng_name=food_data.get("name", ""),
+                        normalized_id_name=food_data.get("local_name"),
+                        original_text=food_data.get("local_name") or food_data.get("name", ""),
                     )
                 )
 
@@ -170,7 +170,15 @@ class MainWorkflow:
     ) -> Dict[str, Any]:
         """Route to Advisor Agent for final recommendations"""
         try:
-            advice = await analyze_daily_nutrition(search_result)
+            # Extract content from RunOutput - search_result.content is the actual text response
+            search_data = search_result.content if hasattr(search_result, 'content') else search_result
+            
+            # TODO: Fix architecture - food search agent returns text, but nutrition advisor expects structured data
+            # For now, return search results as the advice
+            advice = {
+                "nutrition_info": search_data,
+                "note": "Nutrition analysis from food search agent"
+            }
 
             # Update session state
             session_state["advisor_recommendations"] = advice
@@ -264,14 +272,14 @@ if __name__ == "__main__":
         sqlite_db = SQLiteDB(DEFAULT_DB_RELATIVE)
         session_repo = SessionRepository(sqlite_db)
         workflow = MainWorkflow(session_repo)
-        session_id = "test_session_1"
+        session_id = "test_session_2"
 
         print("=== Testing Clean Repository-Based Workflow ===")
 
         # Initial food tracking
         print("\n1. Initial food tracking:")
         result1 = await workflow.process_user_input(
-            "Sarapan: nasi goreng, Lunch: soto ayam", session_id
+            "Sarapan: nasi goreng ati ampela, Lunch: nasi ikan bakar solo", session_id
         )
         print(result1)
 
