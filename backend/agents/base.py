@@ -1,10 +1,9 @@
-from enum import Enum
 from typing import Any, List, Optional, Union
 
 from agno.db.sqlite import SqliteDb
 from agno.models.message import Message
 from pydantic import BaseModel
-from config.variable  import config as config_variable
+from config.variable import config as config_variable
 from config.enum.llm_provider import LLMProvider
 from config.enum.framework import Framework
 

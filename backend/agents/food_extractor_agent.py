@@ -3,6 +3,7 @@ from models.extraction import FoodExtractionPayload
 from .base import AgentConfig, BaseAgent
 from config.variable import config as config_variable
 
+
 def create_food_extractor_agent() -> BaseAgent:
     """Create an agent configured to extract food items from user messages."""
 

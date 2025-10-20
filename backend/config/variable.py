@@ -18,23 +18,23 @@ class ConfigVariable:
 
         if not self.openai_api_key and not self.anthropic_api_key:
             raise ValueError("OPENAI_API_KEY or ANTHROPIC_API_KEY is required")
-        
+
         # Model Configuration
         self.model_id: Optional[str] = os.getenv("MODEL_ID")
         if not self.model_id:
             raise ValueError("MODEL_ID is required")
-        
+
         llm_provider: Optional[str] = os.getenv("LLM_PROVIDER")
         if not llm_provider:
             raise ValueError("LLM_PROVIDER is required")
         self._determine_llm_provider(llm_provider)
-        
+
         # Framework
         framework: Optional[str] = os.getenv("FRAMEWORK")
         if not framework:
             raise ValueError("FRAMEWORK is required")
         self._determine_framework(framework)
-        
+
         # Database
         self.db_path: Optional[str] = os.getenv("DB_PATH")
         if not self.db_path:
@@ -62,6 +62,6 @@ class ConfigVariable:
                     f"Must be one of {valid_frameworks}"
                 )
 
+
 # Global config instance
 config = ConfigVariable()
-        
