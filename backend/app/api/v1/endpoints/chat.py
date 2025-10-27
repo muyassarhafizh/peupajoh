@@ -7,7 +7,6 @@ from usecase.main_workflow import MainWorkflow
 from models.session import SessionState
 from app.api.deps import get_workflow
 from app.api.v1.schemas import ChatRequest, ChatResponse
-from app.core.exceptions import WorkflowError
 
 logger = logging.getLogger(__name__)
 

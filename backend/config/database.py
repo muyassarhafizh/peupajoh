@@ -10,7 +10,11 @@ from config.settings import settings
 
 # Create database URL from settings
 # Support both SQLite and other databases (PostgreSQL, MySQL, etc.)
-if settings.db_path.startswith("sqlite:///") or settings.db_path.startswith("postgresql://") or settings.db_path.startswith("mysql://"):
+if (
+    settings.db_path.startswith("sqlite:///")
+    or settings.db_path.startswith("postgresql://")
+    or settings.db_path.startswith("mysql://")
+):
     DATABASE_URL = settings.db_path
 else:
     # Assume it's a file path for SQLite

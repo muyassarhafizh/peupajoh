@@ -9,7 +9,7 @@ if __name__ == "__main__":
     port = int(os.getenv("APP_PORT", "8000"))
     reload = os.getenv("APP_RELOAD", "true").lower() == "true"
 
-    print(f"Starting Peupajoh API server...")
+    print("Starting Peupajoh API server...")
     print(f"Server: http://{host}:{port}")
     print(f"API Docs: http://{host}:{port}/api/docs")
     print(f"ReDoc: http://{host}:{port}/api/redoc")

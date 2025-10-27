@@ -1,6 +1,5 @@
 """Unified configuration settings for Peupajoh backend and API."""
 
-import os
 from typing import List, Optional
 from pydantic import field_validator, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -45,7 +44,7 @@ class Settings(BaseSettings):
     api_title: str = Field(default="Peupajoh API", description="API title")
     api_description: str = Field(
         default="Food tracking and nutrition analysis API",
-        description="API description"
+        description="API description",
     )
     api_version: str = Field(default="1.0.0", description="API version")
     api_prefix: str = Field(default="/api/v1", description="API URL prefix")
@@ -55,21 +54,15 @@ class Settings(BaseSettings):
     redoc_url: str = Field(default="/api/redoc", description="ReDoc URL")
 
     # CORS Settings
-    cors_origins: List[str] = Field(
-        default=["*"],
-        description="CORS allowed origins"
-    )
+    cors_origins: List[str] = Field(default=["*"], description="CORS allowed origins")
     cors_allow_credentials: bool = Field(
-        default=True,
-        description="CORS allow credentials"
+        default=True, description="CORS allow credentials"
     )
     cors_allow_methods: List[str] = Field(
-        default=["*"],
-        description="CORS allowed methods"
+        default=["*"], description="CORS allowed methods"
     )
     cors_allow_headers: List[str] = Field(
-        default=["*"],
-        description="CORS allowed headers"
+        default=["*"], description="CORS allowed headers"
     )
 
     model_config = SettingsConfigDict(

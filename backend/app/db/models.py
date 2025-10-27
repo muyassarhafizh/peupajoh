@@ -52,10 +52,14 @@ class AppSession(Base):
     session_type = Column(String, nullable=True)
     session_data = Column(Text, nullable=True)  # JSON stored as TEXT
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), onupdate=func.now(), server_default=func.now()
+    )
 
     def __repr__(self):
-        return f"<AppSession(session_id='{self.session_id}', type='{self.session_type}')>"
+        return (
+            f"<AppSession(session_id='{self.session_id}', type='{self.session_type}')>"
+        )
 
     def to_dict(self):
         """Convert model to dictionary."""

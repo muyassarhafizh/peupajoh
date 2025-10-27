@@ -1,7 +1,6 @@
 from typing import Dict, Any, Optional
 import json
 from sqlalchemy.orm import Session
-from sqlalchemy import select
 from app.db.models import AppSession
 from models.session import SessionState
 
@@ -20,7 +19,11 @@ class SessionRepository:
 
     def get_session_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session state from database"""
-        session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
+        session = (
+            self.db.query(AppSession)
+            .filter(AppSession.session_id == session_id)
+            .first()
+        )
 
         if session and session.session_data:
             try:
@@ -36,7 +39,11 @@ class SessionRepository:
             serialized_state = json.dumps(state)
 
             # Check if session exists
-            existing = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
+            existing = (
+                self.db.query(AppSession)
+                .filter(AppSession.session_id == session_id)
+                .first()
+            )
 
             if existing:
                 # Update existing session
@@ -87,7 +94,11 @@ class SessionRepository:
     def delete_session(self, session_id: str) -> bool:
         """Delete a session from database"""
         try:
-            session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
+            session = (
+                self.db.query(AppSession)
+                .filter(AppSession.session_id == session_id)
+                .first()
+            )
             if session:
                 self.db.delete(session)
                 self.db.commit()
@@ -105,18 +116,22 @@ class SessionRepository:
         """List all sessions with basic info"""
         try:
             sessions_query = (
-                self.db.query(AppSession)
-                .order_by(AppSession.updated_at.desc())
-                .all()
+                self.db.query(AppSession).order_by(AppSession.updated_at.desc()).all()
             )
 
             sessions = []
             for session in sessions_query:
-                sessions.append({
-                    "session_id": session.session_id,
-                    "created_at": session.created_at.isoformat() if session.created_at else None,
-                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
-                })
+                sessions.append(
+                    {
+                        "session_id": session.session_id,
+                        "created_at": session.created_at.isoformat()
+                        if session.created_at
+                        else None,
+                        "updated_at": session.updated_at.isoformat()
+                        if session.updated_at
+                        else None,
+                    }
+                )
 
             return sessions
         except Exception as e:
@@ -125,7 +140,11 @@ class SessionRepository:
 
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session metadata and current state info"""
-        session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
+        session = (
+            self.db.query(AppSession)
+            .filter(AppSession.session_id == session_id)
+            .first()
+        )
 
         if session and session.session_data:
             try:
@@ -136,8 +155,12 @@ class SessionRepository:
                     "extracted_foods": state.get("extracted_foods", []),
                     "pending_clarifications": state.get("pending_clarifications", []),
                     "advisor_recommendations": state.get("advisor_recommendations"),
-                    "created_at": session.created_at.isoformat() if session.created_at else None,
-                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                    "created_at": session.created_at.isoformat()
+                    if session.created_at
+                    else None,
+                    "updated_at": session.updated_at.isoformat()
+                    if session.updated_at
+                    else None,
                 }
             except json.JSONDecodeError:
                 return None

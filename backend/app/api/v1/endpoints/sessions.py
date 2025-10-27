@@ -1,7 +1,6 @@
 """Session management endpoints."""
 
 import logging
-from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from usecase.main_workflow import MainWorkflow

@@ -8,7 +8,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from sqlalchemy.orm import Session
-from config.database import engine, SessionLocal, init_db
+from config.database import SessionLocal, init_db
 from app.db.models import FoodItem
 
 
