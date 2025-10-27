@@ -4,7 +4,7 @@ from .base import AgentConfig, BaseAgent
 from .tools.search_food_in_db import search_food_in_db
 from .tools.search_fatsecret_detail import scrape_food_nutrition
 from models.extraction import FoodNames, FoodSearchPayload
-from config.variable import config as config_variable
+from config.settings import settings
 
 
 def create_food_search_agent() -> BaseAgent:
@@ -54,11 +54,11 @@ You search for food items and return structured nutritional information per 100g
 
     config = AgentConfig(
         name="food_search_agent",
-        model_id=config_variable.model_id,
+        model_id=settings.model_id,
         system_prompt=system_prompt,
         temperature=0.3,  # Lower temperature for more factual responses
-        framework=config_variable.framework,
-        llm_provider=config_variable.llm_provider,
+        framework=settings.framework_enum,
+        llm_provider=settings.llm_provider_enum,
         tools=[
             search_food_in_db,
             scrape_food_nutrition,

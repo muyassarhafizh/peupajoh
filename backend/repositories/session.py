@@ -1,27 +1,31 @@
 from typing import Dict, Any, Optional
 import json
-from config.sqlite import SQLiteDB
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from app.db.models import AppSession
 from models.session import SessionState
 
 
 class SessionRepository:
-    """Repository for managing session state persistence"""
+    """Repository for managing application session state persistence using SQLAlchemy"""
 
-    def __init__(self, sqlite_db: SQLiteDB):
-        self.db = sqlite_db.connect()
+    def __init__(self, db: Session):
+        """
+        Initialize repository with SQLAlchemy session.
+
+        Args:
+            db: SQLAlchemy database session
+        """
+        self.db = db
 
     def get_session_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session state from database"""
-        cursor = self.db.execute(
-            "SELECT session_data FROM agno_sessions WHERE session_id = ?",
-            (session_id,),
-        )
-        result = cursor.fetchone()
+        session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
 
-        if result:
+        if session and session.session_data:
             try:
-                return json.loads(result[0])
-            except (json.JSONDecodeError, IndexError) as e:
+                return json.loads(session.session_data)
+            except json.JSONDecodeError as e:
                 print(f"Error deserializing session state for {session_id}: {e}")
                 return None
         return None
@@ -31,17 +35,26 @@ class SessionRepository:
         try:
             serialized_state = json.dumps(state)
 
-            self.db.execute(
-                """
-                INSERT OR REPLACE INTO agno_sessions (session_id, session_type, session_data, created_at, updated_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """,
-                (session_id, "workflow", serialized_state),
-            )
-            self.db.commit()
+            # Check if session exists
+            existing = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
 
+            if existing:
+                # Update existing session
+                existing.session_data = serialized_state
+                existing.session_type = "workflow"
+            else:
+                # Create new session
+                new_session = AppSession(
+                    session_id=session_id,
+                    session_type="workflow",
+                    session_data=serialized_state,
+                )
+                self.db.add(new_session)
+
+            self.db.commit()
             return True
         except Exception as e:
+            self.db.rollback()
             print(f"Error saving session state for {session_id}: {e}")
             return False
 
@@ -74,12 +87,13 @@ class SessionRepository:
     def delete_session(self, session_id: str) -> bool:
         """Delete a session from database"""
         try:
-            self.db.execute(
-                "DELETE FROM agno_sessions WHERE session_id = ?", (session_id,)
-            )
-            self.db.commit()
+            session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
+            if session:
+                self.db.delete(session)
+                self.db.commit()
             return True
         except Exception as e:
+            self.db.rollback()
             print(f"Error deleting session {session_id}: {e}")
             return False
 
@@ -90,18 +104,19 @@ class SessionRepository:
     def list_sessions(self) -> list[Dict[str, Any]]:
         """List all sessions with basic info"""
         try:
-            cursor = self.db.execute("""
-                SELECT session_id, created_at, updated_at 
-                FROM agno_sessions 
-                ORDER BY updated_at DESC
-            """)
-            result = cursor.fetchall()
+            sessions_query = (
+                self.db.query(AppSession)
+                .order_by(AppSession.updated_at.desc())
+                .all()
+            )
 
             sessions = []
-            for row in result:
-                sessions.append(
-                    {"session_id": row[0], "created_at": row[1], "updated_at": row[2]}
-                )
+            for session in sessions_query:
+                sessions.append({
+                    "session_id": session.session_id,
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+                })
 
             return sessions
         except Exception as e:
@@ -110,29 +125,19 @@ class SessionRepository:
 
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get session metadata and current state info"""
-        cursor = self.db.execute(
-            """
-            SELECT session_id, session_data, created_at, updated_at 
-            FROM agno_sessions 
-            WHERE session_id = ?
-        """,
-            (session_id,),
-        )
-        result = cursor.fetchone()
+        session = self.db.query(AppSession).filter(AppSession.session_id == session_id).first()
 
-        if result:
+        if session and session.session_data:
             try:
-                state = json.loads(result[1])
+                state = json.loads(session.session_data)
                 return {
-                    "session_id": result[0],
+                    "session_id": session.session_id,
                     "current_state": state.get("current_state"),
-                    "extracted_foods_count": len(state.get("extracted_foods", [])),
-                    "pending_clarifications_count": len(
-                        state.get("pending_clarifications", [])
-                    ),
-                    "has_advice": bool(state.get("advisor_recommendations")),
-                    "created_at": result[2],
-                    "updated_at": result[3],
+                    "extracted_foods": state.get("extracted_foods", []),
+                    "pending_clarifications": state.get("pending_clarifications", []),
+                    "advisor_recommendations": state.get("advisor_recommendations"),
+                    "created_at": session.created_at.isoformat() if session.created_at else None,
+                    "updated_at": session.updated_at.isoformat() if session.updated_at else None,
                 }
             except json.JSONDecodeError:
                 return None

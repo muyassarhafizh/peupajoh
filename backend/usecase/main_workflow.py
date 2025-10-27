@@ -82,7 +82,7 @@ class MainWorkflow:
 
                 return {
                     "status": "needs_clarification",
-                    "state": session_state["current_state"],
+                    "current_state": session_state["current_state"],
                     "message": f"I found {len(extraction_result.foods)} food items, but need clarification on: {', '.join(needs_clarification)}",
                     "clarifications_needed": needs_clarification,
                     "extracted_foods": session_state["extracted_foods"],
@@ -161,7 +161,7 @@ class MainWorkflow:
                 # )
                 return {
                     "status": "needs_more_clarification",
-                    "state": session_state["current_state"],
+                    "current_state": session_state["current_state"],
                     "message": "I need more details about some food items.",
                     "search_results": search_result.content,
                 }
@@ -194,8 +194,8 @@ class MainWorkflow:
 
             return {
                 "status": "advice_provided",
-                "state": session_state["current_state"],
-                "advice": advice,
+                "current_state": session_state["current_state"],
+                "message": advice,
                 "foods_analyzed": session_state["extracted_foods"],
             }
 
@@ -222,7 +222,7 @@ class MainWorkflow:
             # Handle as follow-up question
             return {
                 "status": "follow_up",
-                "state": session_state["current_state"],
+                "current_state": session_state["current_state"],
                 "message": "I can help with follow-up questions or track new foods. What would you like to do?",
                 "previous_advice": session_state["advisor_recommendations"],
             }

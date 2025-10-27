@@ -1,8 +1,15 @@
 import argparse
 import csv
-import sqlite3
+import sys
 from pathlib import Path
 from typing import Optional
+
+# Add parent directories to path for imports
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from sqlalchemy.orm import Session
+from config.database import engine, SessionLocal, init_db
+from app.db.models import FoodItem
 
 
 DEFAULT_DB_RELATIVE = "backend/data/peupajoh.sqlite3"
@@ -19,49 +26,14 @@ def _to_float(val: str) -> Optional[float]:
         return None
 
 
-class SQLiteDB:
-    """Lightweight SQLite manager for this project."""
-
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
-        self._ensure_dir()
-
-    def _ensure_dir(self) -> None:
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    def connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
-        conn.execute("PRAGMA foreign_keys = ON;")
-        return conn
-
-    def create_schema(self) -> None:
-        with self.connect() as conn:
-            conn.execute(
-                f"""
-                CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-                    id INTEGER PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    calories REAL,
-                    proteins REAL,
-                    fat REAL,
-                    carbohydrate REAL,
-                    image TEXT
-                );
-                """
-            )
-            conn.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_{TABLE_NAME}_name ON {TABLE_NAME}(name);"
-            )
-
-
 class NutritionSeeder:
-    """Seeds nutrition data into SQLite from a CSV file."""
+    """Seeds nutrition data into database from a CSV file using SQLAlchemy."""
 
-    def __init__(self, db: SQLiteDB):
-        self.db = db
+    def __init__(self, db_session: Session):
+        self.db = db_session
 
-    @staticmethod
-    def _upsert_row(conn: sqlite3.Connection, row: dict) -> None:
+    def _upsert_row(self, row: dict) -> None:
+        """Insert or update a food item row."""
         # Normalize name: remove common suffix words like 'masakan', 'segar', 'matang'
         name_parts = (row.get("name") or "").strip().split()
         name_parts = [
@@ -70,30 +42,38 @@ class NutritionSeeder:
             if word.lower() not in ("masakan", "segar", "matang")
         ]
         name = " ".join(name_parts)
-        conn.execute(
-            f"""
-            INSERT INTO {TABLE_NAME} (id, name, calories, proteins, fat, carbohydrate, image)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET
-                name=excluded.name,
-                calories=excluded.calories,
-                proteins=excluded.proteins,
-                fat=excluded.fat,
-                carbohydrate=excluded.carbohydrate,
-                image=excluded.image;
-            """,
-            (
-                int(row["id"]) if row.get("id") not in (None, "") else None,
-                name.strip(),
-                _to_float(row.get("calories", "")),
-                _to_float(row.get("proteins", "")),
-                _to_float(row.get("fat", "")),
-                _to_float(row.get("carbohydrate", "")),
-                (row.get("image") or "").strip() or None,
-            ),
-        )
+
+        # Get the ID
+        food_id = int(row["id"]) if row.get("id") not in (None, "") else None
+
+        # Check if food item exists
+        existing = None
+        if food_id:
+            existing = self.db.query(FoodItem).filter(FoodItem.id == food_id).first()
+
+        if existing:
+            # Update existing
+            existing.name = name.strip()
+            existing.calories = _to_float(row.get("calories", ""))
+            existing.proteins = _to_float(row.get("proteins", ""))
+            existing.fat = _to_float(row.get("fat", ""))
+            existing.carbohydrate = _to_float(row.get("carbohydrate", ""))
+            existing.image = (row.get("image") or "").strip() or None
+        else:
+            # Create new
+            food_item = FoodItem(
+                id=food_id,
+                name=name.strip(),
+                calories=_to_float(row.get("calories", "")),
+                proteins=_to_float(row.get("proteins", "")),
+                fat=_to_float(row.get("fat", "")),
+                carbohydrate=_to_float(row.get("carbohydrate", "")),
+                image=(row.get("image") or "").strip() or None,
+            )
+            self.db.add(food_item)
 
     def seed_from_csv(self, csv_path: Path) -> int:
+        """Seed food items from CSV file."""
         if not csv_path.exists():
             raise FileNotFoundError(f"CSV not found: {csv_path}")
 
@@ -113,16 +93,22 @@ class NutritionSeeder:
                 raise ValueError(f"CSV missing required columns: {sorted(missing)}")
 
             count = 0
-            with self.db.connect() as conn:
-                for row in reader:
-                    self._upsert_row(conn, row)
-                    count += 1
+            for row in reader:
+                self._upsert_row(row)
+                count += 1
+
+                # Commit in batches of 100 for better performance
+                if count % 100 == 0:
+                    self.db.commit()
+
+            # Commit remaining rows
+            self.db.commit()
             return count
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Seed SQLite with Indonesian food nutrition data."
+        description="Seed database with Indonesian food nutrition data using SQLAlchemy."
     )
     parser.add_argument(
         "--csv",
@@ -132,26 +118,28 @@ def main():
         ),
         help="Path to nutrition CSV (defaults to backend/data/nutrition.csv)",
     )
-    parser.add_argument(
-        "--db",
-        type=str,
-        default=str(
-            (
-                Path(__file__).resolve().parents[2] / "data" / "peupajoh.sqlite3"
-            ).resolve()
-        ),
-        help="Path to SQLite DB (defaults to backend/data/peupajoh.sqlite3)",
-    )
     args = parser.parse_args()
 
     csv_path = Path(args.csv).expanduser().resolve()
-    db_path = Path(args.db).expanduser().resolve()
 
-    db = SQLiteDB(db_path)
-    db.create_schema()
-    seeder = NutritionSeeder(db)
-    inserted = seeder.seed_from_csv(csv_path)
-    print(f"Seeded {inserted} rows into '{TABLE_NAME}' at {db_path}")
+    # Initialize database (create tables if they don't exist)
+    print("Initializing database schema...")
+    init_db()
+
+    # Create a database session
+    db_session = SessionLocal()
+
+    try:
+        seeder = NutritionSeeder(db_session)
+        print(f"Seeding data from {csv_path}...")
+        inserted = seeder.seed_from_csv(csv_path)
+        print(f"Successfully seeded {inserted} rows into '{TABLE_NAME}'")
+    except Exception as e:
+        print(f"Error during seeding: {e}")
+        db_session.rollback()
+        raise
+    finally:
+        db_session.close()
 
 
 if __name__ == "__main__":

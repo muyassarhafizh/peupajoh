@@ -13,10 +13,14 @@ from typing import Iterable
 
 import aiosqlite
 from rapidfuzz import fuzz, process
+from config.settings import settings
 
-# Resolve the project root so the database path works regardless of caller
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = BACKEND_ROOT / "data" / "peupajoh.sqlite3"
+# Get database path from settings
+# Convert SQLAlchemy URL to file path if needed
+if settings.db_path.startswith("sqlite:///"):
+    DB_PATH = Path(settings.db_path.replace("sqlite:///", ""))
+else:
+    DB_PATH = Path(settings.db_path)
 
 
 @dataclass(slots=True)
