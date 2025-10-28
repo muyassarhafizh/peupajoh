@@ -1,36 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { ChatRepository } from "@/api/repositories/chat.repository"
 
 export async function POST(request: NextRequest) {
   try {
     const { message } = await request.json()
 
-    if (!message || typeof message !== "string") {
-      return NextResponse.json({ error: "Invalid message" }, { status: 400 })
-    }
+    const chatRepository = new ChatRepository()
+    const response = await chatRepository.chat(message)
 
-    // For now, this is a mock implementation that echoes the message
-    // In production, this should call your Python backend
-
-    const mockResponse = `I received your message: "${message}". 
-    
-This is a placeholder response. Once connected to the backend, I'll provide personalized nutrition analysis based on your food intake.
-
-To integrate with your backend:
-1. Replace this mock with an actual API call to your Python backend
-2. Implement streaming response handling
-3. Parse nutrition data from the backend response`
-
-    // Simulate streaming by sending chunks
+    console.log(response.data.response);
+    // Return as streaming text response
     const encoder = new TextEncoder()
-    const chunks = mockResponse.split(" ")
-
     const stream = new ReadableStream({
-      async start(controller) {
-        for (const chunk of chunks) {
-          controller.enqueue(encoder.encode(chunk + " "))
-          // Simulate network delay
-          await new Promise((resolve) => setTimeout(resolve, 50))
-        }
+      start(controller) {
+        // Send the response text directly
+        controller.enqueue(encoder.encode(response.data.response))
         controller.close()
       },
     })
@@ -38,7 +22,6 @@ To integrate with your backend:
     return new NextResponse(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
       },
     })
   } catch (error) {
