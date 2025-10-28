@@ -1,5 +1,5 @@
 from agents.base import AgentConfig, BaseAgent
-from config.variable import config as config_variable
+from config.settings import settings
 
 # Single Agent Configuration (Will remove the portion assumption in the next iteration)
 NUTRITION_ADVISOR_CONFIG = AgentConfig(
@@ -77,7 +77,7 @@ SCORING:
 - Meal Distribution Score (1-10): Rate how well meals are distributed throughout the day
 
 Always provide constructive feedback that motivates healthy eating habits.""",
-    model_id=config_variable.model_id,
+    model_id=settings.model_id,
     temperature=0.5,
 )
 
