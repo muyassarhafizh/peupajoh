@@ -8,8 +8,6 @@ export async function POST(request: NextRequest) {
     const chatRepository = new ChatRepository()
     const result = await chatRepository.chat(message)
 
-    console.log("Response API CHAT: ", result);
-
     // Return as streaming text response
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
