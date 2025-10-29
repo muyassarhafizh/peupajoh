@@ -21,7 +21,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
     setMounted(true)
   }, [])
 
-  // Auto-resize textarea based on content
+  
   useEffect(() => {
     if (mounted && textareaRef.current) {
       textareaRef.current.style.height = "auto"
@@ -41,7 +41,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Send on Enter, but allow Shift+Enter for new line
+    
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSubmit(e as any)
