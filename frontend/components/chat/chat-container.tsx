@@ -20,17 +20,17 @@ export function ChatContainer() {
   const [nextActions, setNextActions] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new messages arrive
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Set mounted state on client-side
+  
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Load chat history from localStorage after mount
+  
   useEffect(() => {
     if (!mounted) return
     
@@ -45,7 +45,7 @@ export function ChatContainer() {
     }
   }, [mounted])
 
-  // Save chat history to localStorage whenever messages change
+  
   useEffect(() => {
     if (mounted) {
       localStorage.setItem("chatHistory", JSON.stringify(messages))
@@ -55,7 +55,7 @@ export function ChatContainer() {
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return
 
-    // Add user message
+    
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -67,7 +67,7 @@ export function ChatContainer() {
     setError(null)
     setIsLoading(true)
 
-    // Add placeholder for assistant message
+    
     const assistantMessageId = (Date.now() + 1).toString()
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -97,7 +97,7 @@ export function ChatContainer() {
       const decoder = new TextDecoder()
       let fullContent = ""
 
-      // Get next_actions from response headers
+      
       const actionsHeader = response.headers.get("X-Next-Actions")
       if (actionsHeader) {
         try {
@@ -115,7 +115,7 @@ export function ChatContainer() {
         const chunk = decoder.decode(value)
         fullContent += chunk
 
-        // Update the assistant message with streamed content
+        
         setMessages((prev) =>
           prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, content: fullContent } : msg)),
         )
@@ -124,7 +124,7 @@ export function ChatContainer() {
       const errorMessage = err instanceof Error ? err.message : "Failed to get response"
       setError(errorMessage)
 
-      // Remove the placeholder assistant message on error
+      
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId))
     } finally {
       setIsLoading(false)
@@ -137,9 +137,9 @@ export function ChatContainer() {
   }
 
   const handleActionClick = (action: string) => {
-    // Clear the actions when user clicks one
+    
     setNextActions([])
-    // Send the action as a message
+    
     handleSendMessage(action)
   }
 

@@ -16,7 +16,7 @@ export function ChatInput({ onSendMessage, isLoading }: ChatInputProps) {
   const [mounted, setMounted] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Set mounted state on client-side
+  
   useEffect(() => {
     setMounted(true)
   }, [])

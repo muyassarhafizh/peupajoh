@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const chatRepository = new ChatRepository()
     const result = await chatRepository.chat(message)
 
-    // Return as streaming text response
+    
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       start(controller) {
