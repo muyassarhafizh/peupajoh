@@ -269,10 +269,9 @@ class MainWorkflow:
             meal_dict = meal_data.model_dump(exclude_none=False)
             prompt = json.dumps(meal_dict, indent=2)
 
-            def run_stream_sync():
-                return NutritionAdvisorAgent.run_stream(prompt)
-
-            stream_iterator = await asyncio.to_thread(run_stream_sync)
+            stream_iterator = await asyncio.to_thread(
+                NutritionAdvisorAgent.run_stream, prompt
+            )
 
             full_response_parts = []
             final_analysis = None
