@@ -6,15 +6,16 @@ export async function POST(request: NextRequest) {
     const { message } = await request.json()
 
     const chatRepository = new ChatRepository()
-    const response = await chatRepository.chat(message)
+    const result = await chatRepository.chat(message)
 
-    console.log(response.data.response);
+    console.log("Response API CHAT: ", result);
+
     // Return as streaming text response
     const encoder = new TextEncoder()
     const stream = new ReadableStream({
       start(controller) {
-        // Send the response text directly
-        controller.enqueue(encoder.encode(response.data.response))
+        // TODO: need to structurize the response with the BE
+        controller.enqueue(encoder.encode(result.response))
         controller.close()
       },
     })
