@@ -23,6 +23,8 @@ export async function POST(request: NextRequest) {
     return new NextResponse(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
+        // @ts-ignore - TODO: Fix type mismatch between backend response and ApiEnvelope
+        "X-Next-Actions": JSON.stringify(result.next_actions || []),
       },
     })
   } catch (error) {

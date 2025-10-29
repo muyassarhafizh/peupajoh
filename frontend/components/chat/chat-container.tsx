@@ -17,6 +17,7 @@ export function ChatContainer() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [nextActions, setNextActions] = useState<string[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll to bottom when new messages arrive
@@ -96,6 +97,17 @@ export function ChatContainer() {
       const decoder = new TextDecoder()
       let fullContent = ""
 
+      // Get next_actions from response headers
+      const actionsHeader = response.headers.get("X-Next-Actions")
+      if (actionsHeader) {
+        try {
+          const actions = JSON.parse(actionsHeader)
+          setNextActions(actions)
+        } catch (e) {
+          console.error("Failed to parse next actions:", e)
+        }
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -124,6 +136,13 @@ export function ChatContainer() {
     localStorage.removeItem("chatHistory")
   }
 
+  const handleActionClick = (action: string) => {
+    // Clear the actions when user clicks one
+    setNextActions([])
+    // Send the action as a message
+    handleSendMessage(action)
+  }
+
   return (
     <div className="flex h-full flex-col bg-background">
       <ChatHeader onClearHistory={handleClearHistory} />
@@ -131,6 +150,24 @@ export function ChatContainer() {
       <div className="flex-1 overflow-hidden">
         <MessageList messages={messages} isLoading={isLoading} messagesEndRef={messagesEndRef} />
       </div>
+
+      {nextActions.length > 0 && (
+        <div className="border-t border-border bg-muted/30 px-4 py-3">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">Quick actions:</p>
+          <div className="flex flex-wrap gap-2">
+            {nextActions.map((action) => (
+              <button
+                key={action}
+                onClick={() => handleActionClick(action)}
+                disabled={isLoading}
+                className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {action.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="border-t border-border bg-destructive/10 px-4 py-3 text-sm text-destructive">
