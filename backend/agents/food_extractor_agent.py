@@ -1,22 +1,22 @@
 from models.extraction import FoodExtractionPayload
 
 from .base import AgentConfig, BaseAgent
-from config.variable import config as config_variable
+from config.settings import settings
 
 
 def create_food_extractor_agent() -> BaseAgent:
     """Create an agent configured to extract food items from user messages."""
 
     system_prompt = """You are a food extraction specialist for Indonesian cuisine.
-        
+
         Extract food items, portions, and meal types from user messages.
-        
+
         IMPORTANT MEAL TYPE MAPPING:
         - "sarapan" = breakfast
-        - "lunch" or "makan siang" = lunch  
+        - "lunch" or "makan siang" = lunch
         - "malam" or "dinner" or "makan malam" = dinner
         - "snack" or "cemilan" = snack
-        
+
         Rules:
         - Extract ALL food items mentioned
         - Map Indonesian food terms to English (bubur -> rice porridge, steak ayam -> chicken steak)
@@ -27,7 +27,7 @@ def create_food_extractor_agent() -> BaseAgent:
     config = AgentConfig(
         name="Food Extraction Agent",
         system_prompt=system_prompt,
-        model_id=config_variable.model_id,
+        model_id=settings.model_id,
         temperature=0.3,
         debug_mode=True,
     )

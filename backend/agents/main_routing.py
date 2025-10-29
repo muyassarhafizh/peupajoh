@@ -1,14 +1,14 @@
 from agents.base import AgentConfig, BaseAgent
-from config.variable import config as config_variable
+from config.settings import settings
 
 NUTRITION_ROUTING_AGENT = AgentConfig(
     name="Nutrition Routing Agent",
     system_prompt="""
     """,  # TODO: Add system prompt
-    model_id=config_variable.model_id,
+    model_id=settings.model_id,
     temperature=0.3,
-    framework=config_variable.framework,
-    llm_provider=config_variable.llm_provider,
+    framework=settings.framework_enum,
+    llm_provider=settings.llm_provider_enum,
     tools=[],
     debug_mode=True,
 )

@@ -3,7 +3,7 @@ from typing import Any, List, Optional, Union
 from agno.db.sqlite import SqliteDb
 from agno.models.message import Message
 from pydantic import BaseModel
-from config.variable import config as config_variable
+from config.settings import settings
 from config.enum.llm_provider import LLMProvider
 from config.enum.framework import Framework
 
@@ -14,14 +14,14 @@ class AgentConfig:
     def __init__(
         self,
         name: str,
-        model_id: str = config_variable.model_id,
+        model_id: str = settings.model_id,
         system_prompt: Optional[str] = None,
-        db_file: str = config_variable.db_path,
+        db_file: str = settings.db_path,
         temperature: float = 0.7,
         debug_mode: bool = False,
         tools: Optional[List] = None,
-        framework: Framework = config_variable.framework,
-        llm_provider: LLMProvider = config_variable.llm_provider,
+        framework: Framework = settings.framework_enum,
+        llm_provider: LLMProvider = settings.llm_provider_enum,
     ):
         self.name = name
 
