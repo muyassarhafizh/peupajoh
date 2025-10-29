@@ -1,12 +1,14 @@
 """Chat endpoint for main user interaction."""
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+import json
+from fastapi import APIRouter, Depends
+from sse_starlette.sse import EventSourceResponse
 
 from usecase.main_workflow import MainWorkflow
 from models.session import SessionState
 from app.api.deps import get_workflow
-from app.api.v1.schemas import ChatRequest, ChatResponse
+from app.api.v1.schemas import ChatRequest
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +28,10 @@ def _determine_next_actions(session_state: SessionState) -> list[str]:
 
 @router.post(
     "/chat",
-    response_model=ChatResponse,
-    summary="Process user message",
+    summary="Process user message with streaming",
     description=(
         "Main chat endpoint for food tracking and nutrition analysis. "
+        "Streams LLM responses in real-time using Server-Sent Events (SSE). "
         "Delegates to the MainWorkflow to process user input."
     ),
 )
@@ -38,55 +40,62 @@ async def chat_endpoint(
     workflow: MainWorkflow = Depends(get_workflow),
 ):
     """
-    Process user message through the MainWorkflow.
+    Process user message through the MainWorkflow with SSE streaming.
 
     Args:
         request: Chat request with session_id and message
         workflow: MainWorkflow instance (injected)
 
     Returns:
-        ChatResponse with agent response and session state
+        EventSourceResponse streaming SSE events:
+        - event: metadata - Session state updates and extracted data
+        - event: token - Individual LLM response tokens
+        - event: done - Final complete response
+        - event: error - Error information
 
     Raises:
-        HTTPException: If workflow execution fails
+        HTTPException: If workflow initialization fails
     """
-    try:
-        logger.info(f"Processing chat request for session: {request.session_id}")
+    logger.info(f"Processing streaming chat request for session: {request.session_id}")
 
-        # Process user input through workflow
-        result = await workflow.process_user_input(
-            session_id=request.session_id,
-            user_message=request.message,
-        )
-
-        # Extract session state
-        session_state_str = result.get("current_state", "initial")
+    async def event_generator():
+        """Generate SSE events from workflow stream."""
         try:
-            session_state = SessionState(session_state_str.lower())
-        except ValueError:
-            logger.warning(
-                f"Invalid session state '{session_state_str}', defaulting to INITIAL"
+            async for event in workflow.process_user_input_stream(
+                session_id=request.session_id,
+                user_message=request.message,
+            ):
+                event_type = event.get("event", "message")
+                event_data = event.get("data", {})
+                data_json = json.dumps(event_data, ensure_ascii=False, default=str)
+
+                yield {
+                    "event": event_type,
+                    "data": data_json,
+                }
+
+                logger.debug(
+                    f"Sent {event_type} event for session {request.session_id}"
+                )
+
+                if event_type in ["done", "error"]:
+                    logger.info(
+                        f"Stream completed with {event_type} for session {request.session_id}"
+                    )
+                    break
+
+        except Exception as e:
+            logger.error(
+                f"Error in stream for session {request.session_id}: {str(e)}",
+                exc_info=True,
             )
-            session_state = SessionState.INITIAL
+            error_data = json.dumps(
+                {"error": "stream_error", "detail": str(e)},
+                ensure_ascii=False,
+            )
+            yield {
+                "event": "error",
+                "data": error_data,
+            }
 
-        # Build response
-        response = ChatResponse(
-            session_id=request.session_id,
-            response=result.get("message", "No response generated."),
-            session_state=session_state,
-            data=result.get("data", {}),
-            next_actions=_determine_next_actions(session_state),
-        )
-
-        logger.info(
-            f"""Chat request processed successfully. Initial state: {session_state.value}
-            Final state: {response.session_state.value}"""
-        )
-        return response
-
-    except Exception as e:
-        logger.error(f"Error processing chat request: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process message: {str(e)}",
-        ) from e
+    return EventSourceResponse(event_generator())

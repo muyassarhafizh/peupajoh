@@ -101,3 +101,20 @@ class BaseAgent:
     ) -> Any:
         agent = self._build_agent(input_schema, output_schema)
         return await agent.arun(input, session_id=session_id, **kwargs)
+
+    def run_stream(
+        self,
+        input: Union[str, List[Message], BaseModel],
+        input_schema: Optional[Any] = None,
+        output_schema: Optional[Any] = None,
+        session_id: Optional[str] = None,
+        **kwargs,
+    ):
+        """
+        Stream agent responses token by token using Agno's streaming API.
+
+        Yields RunOutputEvent objects from the agent.
+        """
+        agent = self._build_agent(input_schema, output_schema)
+        # Use Agno's built-in streaming with stream=True
+        return agent.run(input, session_id=session_id, stream=True, **kwargs)
