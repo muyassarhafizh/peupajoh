@@ -1,6 +1,6 @@
 """Response schemas for API endpoints."""
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from pydantic import BaseModel, Field
 from models.session import SessionState
 
@@ -73,3 +73,53 @@ class SessionListResponse(BaseModel):
 
     sessions: List[SessionListItem] = Field(default_factory=list)
     total: int = Field(0, description="Total number of sessions")
+
+
+# ============================================================================
+# STREAMING SSE SCHEMAS
+# ============================================================================
+
+
+class StreamEventBase(BaseModel):
+    """Base schema for all SSE stream events."""
+
+    event: str = Field(..., description="Event type")
+
+
+class TokenStreamEvent(StreamEventBase):
+    """Event for streaming individual LLM tokens."""
+
+    event: Literal["token"] = "token"
+    data: str = Field(..., description="Token content")
+
+
+class MetadataStreamEvent(StreamEventBase):
+    """Event for streaming session state metadata updates."""
+
+    event: Literal["metadata"] = "metadata"
+    data: Dict[str, Any] = Field(
+        ..., description="Metadata (session state, extracted foods, etc.)"
+    )
+
+
+class DataStreamEvent(StreamEventBase):
+    """Event for streaming structured data (nutrition analysis, etc.)."""
+
+    event: Literal["data"] = "data"
+    data: Dict[str, Any] = Field(..., description="Structured data payload")
+
+
+class DoneStreamEvent(StreamEventBase):
+    """Event indicating stream completion with final response."""
+
+    event: Literal["done"] = "done"
+    data: ChatResponse = Field(..., description="Complete final response")
+
+
+class ErrorStreamEvent(StreamEventBase):
+    """Event for streaming errors."""
+
+    event: Literal["error"] = "error"
+    data: Dict[str, str] = Field(
+        ..., description="Error information with 'error' and 'detail' keys"
+    )
