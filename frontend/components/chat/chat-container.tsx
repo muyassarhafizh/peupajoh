@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react"
 import { MessageList } from "./message-list"
 import { ChatInput } from "./chat-input"
 import { ChatHeader } from "./chat-header"
+import { ChatRepository } from "@/api/repositories/chat.repository"
 
 export interface Message {
   id: string
@@ -12,13 +13,17 @@ export interface Message {
   timestamp: Date
 }
 
+export type LoadingState = 'idle' | 'connecting' | 'streaming' | 'error'
+
 export function ChatContainer() {
   const [messages, setMessages] = useState<Message[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [loadingState, setLoadingState] = useState<LoadingState>('idle')
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
   const [nextActions, setNextActions] = useState<string[]>([])
+  const [sessionId, setSessionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const chatRepository = useRef(new ChatRepository())
 
   
   useEffect(() => {
@@ -53,9 +58,9 @@ export function ChatContainer() {
   }, [messages, mounted])
 
   const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return
+    if (!content.trim() || loadingState !== 'idle') return
 
-    
+    // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -65,9 +70,9 @@ export function ChatContainer() {
 
     setMessages((prev) => [...prev, userMessage])
     setError(null)
-    setIsLoading(true)
+    setLoadingState('connecting')
 
-    
+    // Create placeholder for assistant message
     const assistantMessageId = (Date.now() + 1).toString()
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -79,55 +84,59 @@ export function ChatContainer() {
     setMessages((prev) => [...prev, assistantMessage])
 
     try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
-      }
-
-      if (!response.body) {
-        throw new Error("No response body")
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
       let fullContent = ""
+      let hasReceivedFirstChunk = false
 
-      
-      const actionsHeader = response.headers.get("X-Next-Actions")
-      if (actionsHeader) {
-        try {
-          const actions = JSON.parse(actionsHeader)
-          setNextActions(actions)
-        } catch (e) {
-          console.error("Failed to parse next actions:", e)
+      await chatRepository.current.streamChat(
+        content,
+        sessionId,
+        {
+          onContent: (chunk: string) => {
+            if (!hasReceivedFirstChunk) {
+              hasReceivedFirstChunk = true
+              setLoadingState('streaming')
+            }
+            
+            fullContent += chunk
+            
+            // Update message content
+            setMessages((prev) =>
+              prev.map((msg) => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, content: fullContent } 
+                  : msg
+              ),
+            )
+          },
+          onMetadata: (metadata) => {
+            if (metadata.next_actions) {
+              setNextActions(metadata.next_actions)
+            }
+            if (metadata.session_state) {
+              // Store session state if needed
+            }
+          },
+          onError: (errorMsg) => {
+            setError(errorMsg)
+            setLoadingState('error')
+            // Remove the empty assistant message on error
+            setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId))
+          },
+          onDone: () => {
+            setLoadingState('idle')
+          },
         }
-      }
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value)
-        fullContent += chunk
-
-        
-        setMessages((prev) =>
-          prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, content: fullContent } : msg)),
-        )
-      }
+      )
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Failed to get response"
       setError(errorMessage)
-
+      setLoadingState('error')
       
+      // Remove the empty assistant message on error
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId))
-    } finally {
-      setIsLoading(false)
+      
+      // Reset to idle after showing error
+      setTimeout(() => setLoadingState('idle'), 2000)
     }
   }
 
@@ -148,7 +157,11 @@ export function ChatContainer() {
       <ChatHeader onClearHistory={handleClearHistory} />
 
       <div className="flex-1 overflow-hidden">
-        <MessageList messages={messages} isLoading={isLoading} messagesEndRef={messagesEndRef} />
+        <MessageList 
+          messages={messages} 
+          loadingState={loadingState}
+          messagesEndRef={messagesEndRef} 
+        />
       </div>
 
       {nextActions.length > 0 && (
@@ -159,7 +172,7 @@ export function ChatContainer() {
               <button
                 key={action}
                 onClick={() => handleActionClick(action)}
-                disabled={isLoading}
+                disabled={loadingState !== 'idle'}
                 className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {action.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -178,7 +191,7 @@ export function ChatContainer() {
         </div>
       )}
 
-      <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
+      <ChatInput onSendMessage={handleSendMessage} isLoading={loadingState !== 'idle'} />
     </div>
   )
 }

@@ -2,7 +2,7 @@ import { ApiError } from './api.error';
 import { ApiEnvelope } from '@/entities/api.entity';
 
 export class ApiFactory {
-  private baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  protected baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
 
   constructor() {
     if (!this.baseUrl) {
